@@ -5,7 +5,11 @@
   "main": "index.js",
   "scripts": {
 <<<<<<< HEAD
+<<<<<<< HEAD
     "start": "nodemon index.js"
+=======
+    "start": "node index.js"
+>>>>>>> 1a4e9873e360db5b88dce4e9f9bf936018844303
 =======
     "start": "node index.js"
 >>>>>>> 1a4e9873e360db5b88dce4e9f9bf936018844303
@@ -17,6 +21,10 @@
     "cors": "^2.8.5",
     "express": "^4.17.1",
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+    "firebase-admin": "^8.12.1",
+>>>>>>> 1a4e9873e360db5b88dce4e9f9bf936018844303
 =======
     "firebase-admin": "^8.12.1",
 >>>>>>> 1a4e9873e360db5b88dce4e9f9bf936018844303
