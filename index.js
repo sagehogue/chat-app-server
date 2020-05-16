@@ -24,9 +24,11 @@ admin.initializeApp({
 
 app.use(cors());
 app.use(router);
+const myObj = { hey: "that" };
+myObj.hey;
 
 db = admin.firestore();
-const roomsRef = db.collection("/rooms");
+const roomsRef = db.collection("rooms");
 const testRef = roomsRef.doc("test");
 
 // Testing firebase functionality
@@ -57,11 +59,22 @@ let getDoc = roomsRef
     console.log("Error getting document", err);
   });
 
-// socket.io event listeners
+// socket.io event listenerss
 
 io.on("connect", socket => {
   socket.on("join", ({ name, room }, callback) => {
     const { error, user } = addUser({ id: socket.id, name, room });
+    const roomRef = roomsRef.get(room).then(roomData => {
+      if (!roomData.exists) {
+        // Add room too db
+        console.log(room, name);
+        roomsRef.doc(room);
+        roomsRef.set({ messageHistory: [] });
+      } else {
+        // do stuff
+        console.log(roomData.id, roomData.data());
+      }
+    });
 
     if (error) return callback(error);
 
@@ -87,7 +100,7 @@ io.on("connect", socket => {
     const user = getUser(socket.id);
 
     io.to(user.room).emit("message", { user: user.name, text: message });
-
+    // Add message to room messagehistory in database
     callback();
   });
 
