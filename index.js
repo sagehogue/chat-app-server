@@ -2,13 +2,11 @@ const http = require("http");
 const express = require("express");
 const socketio = require("socket.io");
 const cors = require("cors");
-const admin = require("firebase-admin");
 
 const { addUser, removeUser, getUser, getUsersInRoom } = require("./users");
+const { addMessageToRoom, getMessageHistory } = require("./messages");
 
 const router = require("./router");
-
-// Initializing app, packages
 
 const app = express();
 const server = http.createServer(app);
@@ -63,6 +61,37 @@ let getDoc = roomsRef
 
 io.on("connect", socket => {
   socket.on("join", ({ name, room }, callback) => {
+    let messageHistory;
+    // Get Messages
+    const { error, messages } = getMessageHistory(db, room).then(
+      (err, msgs) => {
+        // Add user to user list
+        const { userError, user } = ({ error, user } = addUser({
+          id: socket.id,
+          name,
+          room,
+        }));
+        // Msg history is blank/room not found
+        if (err) messageHistory = [];
+        // Room/messagehistory found
+        else messageHistory = msgs;
+        // Error occured
+        if (userError) return callback(error);
+        // Connect user
+        socket.join(user.room);
+        // Send welcome message to user
+        socket.emit("message", {
+          user: "admin",
+          text: `${user.name}, welcome to room ${user.room}.`,
+        });
+        // Send messageHistory to user
+        socket.emit("messageHistory", messageHistory);
+        // Send announcement to room that user has joined.
+        socket.broadcast
+          .to(user.room)
+          .emit("message", { user: "admin", text: `${user.name} has joined!` });
+      }
+    );
     const { error, user } = addUser({ id: socket.id, name, room });
     const roomRef = roomsRef.get(room).then(roomData => {
       if (!roomData.exists) {
