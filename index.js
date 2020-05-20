@@ -2,11 +2,7 @@ const http = require("http");
 const express = require("express");
 const socketio = require("socket.io");
 const cors = require("cors");
-<<<<<<< HEAD
 const admin = require("firebase-admin");
-=======
-admin = require("firebase-admin");
->>>>>>> 3359d602602412f6e47d7917102a050030a2476a
 
 const { addUser, removeUser, getUser, getUsersInRoom } = require("./users");
 const { addMessageToRoom, getMessageHistory } = require("./messages");
@@ -34,7 +30,6 @@ db = admin.firestore();
 const roomsRef = db.collection("rooms");
 const testRef = roomsRef.doc("test");
 
-<<<<<<< HEAD
 // Testing firebase functionality
 
 // This is how you set a message - specifically how to update an array of objects in firebase with a new entry
@@ -46,8 +41,6 @@ let setTestMessages = testRef.update({
   }),
 });
 
-=======
->>>>>>> 3359d602602412f6e47d7917102a050030a2476a
 // This is how to log all data from a collection
 
 let getDoc = roomsRef
@@ -71,7 +64,6 @@ io.on("connect", (socket) => {
   socket.on("join", ({ name, room }, callback) => {
     let messageHistory;
     // Get Messages
-<<<<<<< HEAD
     const getMessage = getMessageHistory(db, room).then((err, msgs) => {
       // Add user to user list
       const { error, user } = ({ error, user } = addUser({
@@ -79,15 +71,6 @@ io.on("connect", (socket) => {
         name,
         room,
       }));
-=======
-    const returnMessages = getMessageHistory(db, room).then((err, msgs) => {
-      // Add user to user list
-      const { error, user } = addUser({
-        id: socket.id,
-        name,
-        room
-      });
->>>>>>> 3359d602602412f6e47d7917102a050030a2476a
       // Msg history is blank/room not found
       if (err) messageHistory = [];
       // Room/messagehistory found
@@ -99,11 +82,7 @@ io.on("connect", (socket) => {
       // Send welcome message to user
       socket.emit("message", {
         user: "admin",
-<<<<<<< HEAD
         text: `${user.name}, welcome to room ${user.room}.`,
-=======
-        text: `${user.name}, welcome to room ${user.room}.`
->>>>>>> 3359d602602412f6e47d7917102a050030a2476a
       });
       // Send messageHistory to user
       socket.emit("messageHistory", messageHistory);
@@ -111,7 +90,6 @@ io.on("connect", (socket) => {
       socket.broadcast
         .to(user.room)
         .emit("message", { user: "admin", text: `${user.name} has joined!` });
-<<<<<<< HEAD
     });
     const { error, user } = addUser({ id: socket.id, name, room });
 
@@ -122,8 +100,6 @@ io.on("connect", (socket) => {
     socket.emit("message", {
       user: "admin",
       text: `${user.name}, welcome to room ${user.room}.`,
-=======
->>>>>>> 3359d602602412f6e47d7917102a050030a2476a
     });
     io.to(user.room).emit("roomData", {
       room: user.room,
