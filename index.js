@@ -67,6 +67,18 @@ const addMessageToRoom = async (message, roomName) => {
 // socket.io event listenerss
 
 io.on("connect", (socket) => {
+  const auth = admin.auth();
+  // listens for logins, logouts, registrations and fires. Undefined or null if no user logged in, user object provided if logged in.
+  auth.onAuthStateChanged(function (user) {
+    window.user = user; // user is undefined if no user signed in, window.user is accessible in other functions and kept current
+    if (user) {
+      console.log(user);
+      socket.emit("login-successful", user);
+      // handle
+    } else {
+      // handle
+    }
+  });
   socket.on("join", ({ name, room }, callback) => {
     // Get Messages
     let messageHistory;
@@ -102,6 +114,33 @@ io.on("connect", (socket) => {
     });
 
     callback();
+  });
+
+  socket.on("register-user", ({ email, password }) => {
+    admin
+      .auth()
+      .createUserWithEmailAndPassword(email, password)
+      .then((res) => {
+        socket.emit("register-user-success");
+      })
+      .catch(function (error) {
+        // Handle Errors here.
+        var errorCode = error.code;
+        var errorMessage = error.message;
+        // ...
+      });
+  });
+
+  socket.on("login", ({ email, password }) => {
+    admin
+      .auth()
+      .signInWithEmailAndPassword(email, password)
+      .catch(function (error) {
+        // Handle Errors here.
+        var errorCode = error.code;
+        var errorMessage = error.message;
+        // ...
+      });
   });
 
   socket.on("sendMessage", ({ message, room }, callback) => {
