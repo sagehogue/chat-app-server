@@ -27,15 +27,23 @@ db = admin.firestore();
 const roomsRef = db.collection("rooms");
 const testRef = roomsRef.doc("test");
 
+const getCurrentTime = () => {
+  let today = new Date();
+  let date = today.getFullYear() + '-' + (today.getMonth() + 1) + '-' + today.getDate();
+  let time = today.getHours() + ":" + today.getMinutes() + ":" + today.getSeconds();
+  let dateTime = date + ' ' + time;
+  return dateTime
+}
+
 // Testing firebase functionality
 
 // Fetches message history of a given room. Requires roomName string.
 const getMessageHistory = async (roomName) => {
+  console.log(`Looking up roomName: ${roomName} in getMessageHistory`)
   const roomRef = db.doc(`rooms/${roomName}`);
   let room = await roomRef.get();
   if (room.exists) {
-    console.log("Document data:", room.data().messageHistory);
-    return room.data().getMessageHistory;
+    return await room.data().messageHistory;
   } else {
     return "Room not found.";
   }
@@ -43,10 +51,11 @@ const getMessageHistory = async (roomName) => {
 
 // Adds message to room thread.
 // Takes a message object and a room name string
-// Message object expected to look like { message, user, time }
+// Message object expected to look like { text, user, time }
 const addMessageToRoom = async (message, roomName) => {
+  console.log(`Looking up roomName: ${roomName} in addMessageToRoom`)
   const roomsRef = db.collection("rooms");
-  const roomRef = db.doc(`rooms/${roomName}`);
+  const roomRef = roomsRef.doc(`${roomName}`);
   let room = await roomRef.get();
   if (room.exists) {
     roomRef.update({
@@ -54,9 +63,7 @@ const addMessageToRoom = async (message, roomName) => {
     });
   } else {
     // doc.data() will be undefined in this case
-    // TODO: Implement room creation
-    console.log("No such document!");
-    roomPreviouslyExisted = false;
+    console.log(`Looked up ${roomName} in database, document.exists reads ${document.exists}`);
     const data = {
       messageHistory: [message],
     };
@@ -67,32 +74,25 @@ const addMessageToRoom = async (message, roomName) => {
 // socket.io event listenerss
 
 io.on("connect", (socket) => {
-  const auth = admin.auth();
-  // listens for logins, logouts, registrations and fires. Undefined or null if no user logged in, user object provided if logged in.
-  auth.onAuthStateChanged(function (user) {
-    window.user = user; // user is undefined if no user signed in, window.user is accessible in other functions and kept current
-    if (user) {
-      console.log(user);
-      socket.emit("login-successful", user);
-      // handle
-    } else {
-      // handle
-    }
-  });
+  // const auth = admin.auth.onAuthStateChanged(function (user) {
+  //   // listens for logins, logouts, registrations and fires. Undefined or null if no user logged in, user object provided if logged in.
+  //   window.user = user; // user is undefined if no user signed in, window.user is accessible in other functions and kept current
+  //   if (user) {
+  //     console.log(user);
+  //     socket.emit("login-successful", user);
+  //     // handle
+  //   } else {
+  //     // handle
+  //   }
+  // });
   socket.on("join", ({ name, room }, callback) => {
-    // Get Messages
-    let messageHistory;
-    getMessageHistory(room).then((msgs) => {
-      // Message History is blank or found.
-      messageHistory = msgs == "Room not found." ? [] : msgs;
-    });
+
     // Add user to user list
     const { error, user } = addUser({
       id: socket.id,
       name,
       room,
     });
-
     // Error occured
     if (error) return callback(error);
     // Connect user
@@ -101,9 +101,18 @@ io.on("connect", (socket) => {
     socket.emit("message", {
       user: "admin",
       text: `${name}, welcome to room ${room}.`,
+      time: getCurrentTime()
     });
-    // Send messageHistory to user
-    socket.emit("messageHistory", messageHistory);
+    // Get Messages
+    let messageHistory;
+    console.log(`user ${name} has joined room ${room}`)
+    getMessageHistory(room).then(msgs => {
+      // Message History is blank or found.
+      messageHistory = (msgs == "Room not found." ? [] : msgs);
+      // Send messageHistory to user
+      console.log(`Messagehistory:\n${messageHistory}`)
+      socket.emit("messageHistory", messageHistory);
+    });
     // Send announcement to room that user has joined.
     socket.broadcast
       .to(user.room)
@@ -143,10 +152,12 @@ io.on("connect", (socket) => {
       });
   });
 
-  socket.on("sendMessage", ({ message, room }, callback) => {
-    const user = getUser(socket.id);
+  socket.on("sendMessage", ({ content: { text, user, time, room } }, callback) => {
+    const sender = getUser(socket.id);
     // console.log(user);
-    io.to(user.room).emit("message", { user: user.name, text: message });
+    const message = { user: user, text, time }
+    console.log({ user: user, text, time })
+    io.to(sender.room).emit("message", message);
     addMessageToRoom(message, room);
 
     callback();
