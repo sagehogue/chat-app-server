@@ -110,7 +110,7 @@ io.on("connect", (socket) => {
     });
     // Error occured
     console.log(error)
-    if (error) return callback(error);
+    // if (error) return callback(error);
     // Connect user
     socket.join(room);
     // Send welcome message to user
@@ -130,15 +130,16 @@ io.on("connect", (socket) => {
       socket.emit("messageHistory", messageHistory);
     });
     // Send announcement to room that user has joined.
+    console.log(getUsersInRoom(room))
     socket.broadcast
-      .to(user.room)
-      .emit("message", { user: "admin", text: `${user.name} has joined!` });
-    io.to(user.room).emit("roomData", {
-      room: user.room,
-      users: getUsersInRoom(user.room),
+      .to(room)
+      .emit("message", { user: "admin", text: `${name} has joined!` });
+    io.to(room).emit("roomData", {
+      room: room,
+      users: getUsersInRoom(room),
     });
 
-    callback();
+    // callback();
   });
 
   socket.on("register-user", ({ email, password }) => {
@@ -179,21 +180,17 @@ io.on("connect", (socket) => {
     callback();
   });
 
-  socket.on("disconnect", (user) => {
-    // const user = removeUser(socket.id);
-    console.log(user)
-    socket.broadcast
-      .to(user.room)
-      .emit("message", { user: "admin", text: `${user.name} disconnected` });
-
-    if (user) {
-      io.to(user.room).emit("message", {
+  socket.on("room-disconnect", () => {
+    const removedUser = removeUser(socket.id);
+    console.log(socket.id, removedUser)
+    if (removedUser) {
+      io.to(removedUser.room).emit("message", {
         user: "Admin",
-        text: `${user.name} has left.`,
+        text: `${removedUser.name} disconnected`,
       });
-      io.to(user.room).emit("roomData", {
-        room: user.room,
-        users: getUsersInRoom(user.room),
+      io.to(removedUser.room).emit("roomData", {
+        room: removedUser.room,
+        users: getUsersInRoom(removedUser.room),
       });
     }
   });
