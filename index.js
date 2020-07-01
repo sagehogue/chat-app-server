@@ -42,9 +42,24 @@ const getMessageHistory = async (roomName) => {
   console.log(`Looking up roomName: ${roomName} in getMessageHistory`)
   const roomRef = db.doc(`rooms/${roomName}`);
   let room = await roomRef.get();
+  console.log("RoomRef: " + roomRef)
+  console.log("Room: " + room)
+  console.log("Room data: " + await room.data())
+  console.log("Room exists? " + room.exists);
+  room => {
+    if (docSnapshot.exists) {
+      usersRef.onSnapshot((doc) => {
+        // do stuff with the data
+        console.log("Here's the doc:\n" + doc)
+      });
+    } else {
+      console.log("NOPE NO DOC HERE")
+    }
+  };
   if (room.exists) {
     return await room.data().messageHistory;
   } else {
+    console.log("Room not found.")
     return "Room not found.";
   }
 };
@@ -63,7 +78,7 @@ const addMessageToRoom = async (message, roomName) => {
     });
   } else {
     // doc.data() will be undefined in this case
-    console.log(`Looked up ${roomName} in database, document.exists reads ${document.exists}`);
+    console.log(`Looked up ${roomName} in database, room.exists reads ${room.exists}`);
     const data = {
       messageHistory: [message],
     };
@@ -94,6 +109,7 @@ io.on("connect", (socket) => {
       room,
     });
     // Error occured
+    console.log(error)
     if (error) return callback(error);
     // Connect user
     socket.join(room);
@@ -156,15 +172,19 @@ io.on("connect", (socket) => {
     const sender = getUser(socket.id);
     // console.log(user);
     const message = { user: user, text, time }
-    console.log({ user: user, text, time })
+    console.log("sendMessage event detected! content:\n" + { user: user, text, time })
     io.to(sender.room).emit("message", message);
     addMessageToRoom(message, room);
 
     callback();
   });
 
-  socket.on("disconnect", () => {
-    const user = removeUser(socket.id);
+  socket.on("disconnect", (user) => {
+    // const user = removeUser(socket.id);
+    console.log(user)
+    socket.broadcast
+      .to(user.room)
+      .emit("message", { user: "admin", text: `${user.name} disconnected` });
 
     if (user) {
       io.to(user.room).emit("message", {
