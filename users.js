@@ -1,6 +1,39 @@
 // array of online users
 const users = [];
 
+// array of active rooms
+const rooms = [];
+
+export const addRoomOrIncrementOnlineUsers = ({ room }) => {
+  console.log(room)
+  room = room.trim().toLowerCase();
+  const existingRoom = rooms.find((onlineRoom) => onlineRoom.roomName === room);
+  // some custom errors
+  if (existingRoom) {
+    existingRoom.online++
+  } else {
+    const newRoom = { roomName: room, online: 1 }
+    rooms.push(newRoom)
+  }
+  return newRoom;
+};
+
+export const decrementOnlineUsers = ({ room }) => {
+  console.log(room)
+  room = room.trim().toLowerCase();
+  const existingRoom = rooms.find((onlineRoom) => onlineRoom.roomName === room);
+  // some custom errors
+  if (existingRoom) {
+    if (existingRoom.online > 1) {
+      existingRoom.online--
+    } else {
+      let index = rooms.findIndex(onlineRoom => onlineRoom.roomName === room)
+      rooms.splice(index, 1)
+    }
+  }
+  return newRoom;
+};
+
 // Method to add a new user to the array of online users
 const addUser = ({ id, name, room }) => {
   // ID is unique and is compared against to find the user.
