@@ -4,6 +4,7 @@ const socketio = require("socket.io");
 const cors = require("cors");
 const admin = require("firebase-admin");
 
+
 const { addUser, removeUser, getUser, getUsersInRoom, addRoomOrIncrementOnlineUsers, decrementOnlineUsers } = require("./users");
 
 const router = require("./router");
@@ -39,13 +40,13 @@ const getCurrentTime = () => {
 
 // Fetches message history of a given room. Requires roomName string.
 const getMessageHistory = async (roomName) => {
-  console.log(`Looking up roomName: ${roomName} in getMessageHistory`)
+  // console.log(`Looking up roomName: ${roomName} in getMessageHistory`)
   const roomRef = db.doc(`rooms/${roomName}`);
   let room = await roomRef.get();
-  console.log("RoomRef: " + roomRef)
-  console.log("Room: " + room)
-  console.log("Room data: " + await room.data())
-  console.log("Room exists? " + room.exists);
+  // console.log("RoomRef: " + roomRef)
+  // console.log("Room: " + room)
+  // console.log("Room data: " + await room.data())
+  // console.log("Room exists? " + room.exists);
   room => {
     if (docSnapshot.exists) {
       usersRef.onSnapshot((doc) => {
@@ -89,6 +90,17 @@ const addMessageToRoom = async (message, roomName) => {
 // socket.io event listenerss
 
 io.on("connect", (socket) => {
+  // Add user to user list
+  const displayName = socket.handshake.query.displayName
+  console.log("displayName: " + displayName)
+  const { error, user } = addUser({
+    id: socket.id,
+    name: displayName,
+  });
+  if (error || user) {
+    console.log(`user: ${user}`)
+    console.log(`error: ${error}`)
+  }
   // const auth = admin.auth.onAuthStateChanged(function (user) {
   //   // listens for logins, logouts, registrations and fires. Undefined or null if no user logged in, user object provided if logged in.
   //   window.user = user; // user is undefined if no user signed in, window.user is accessible in other functions and kept current
@@ -101,22 +113,19 @@ io.on("connect", (socket) => {
   //   }
   // });
   socket.on("join", ({ name, room }, callback) => {
-    console.log(`username: ${name} room: ${room}`)
-    // Add user to user list
-    const { error, user } = addUser({
-      id: socket.id,
-      name,
-      room,
-    });
+    // // Add user to user list
+    // const { error, user } = addUser({
+    //   id: socket.id,
+    //   name,
+    //   room,
+    // });
     // Error occured
-    if (error || user) {
-      console.log(`user: ${user}`)
-      console.log(`error: ${error}`)
-    }
+
     // if (error) return callback(error);
     // Connect user
     socket.join(room);
     // Update server model of online users.
+    console.log(`username: ${name} room: ${room}`)
     let onlineUserCount = addRoomOrIncrementOnlineUsers(room)
     // Send welcome message to user
     socket.emit("message", {
@@ -201,6 +210,15 @@ io.on("connect", (socket) => {
         onlineUserCount: newUserCount
       });
     }
+  });
+  socket.on('disconnecting', (reason) => {
+    let rooms = Object.keys(socket.rooms);
+    console.log(`User disconnecting from ${rooms}`)
+    let i;
+    for (i = 0; i < rooms.length; i++) {
+      decrementOnlineUsers(rooms[i])
+    }
+    // ...
   });
 });
 server.listen(process.env.PORT || 5000, () =>
