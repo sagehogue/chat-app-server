@@ -4,7 +4,7 @@ const socketio = require("socket.io");
 const cors = require("cors");
 const admin = require("firebase-admin");
 
-const { addUser, removeUser, getUser, getUsersInRoom } = require("./users");
+const { addUser, removeUser, getUser, getUsersInRoom, addRoomOrIncrementOnlineUsers, decrementOnlineUsers } = require("./users");
 
 const router = require("./router");
 const serviceAccount = require("./API_KEY.json");
@@ -101,7 +101,7 @@ io.on("connect", (socket) => {
   //   }
   // });
   socket.on("join", ({ name, room }, callback) => {
-
+    console.log(`username: ${name} room: ${room}`)
     // Add user to user list
     const { error, user } = addUser({
       id: socket.id,
@@ -109,10 +109,15 @@ io.on("connect", (socket) => {
       room,
     });
     // Error occured
-    console.log(error)
+    if (error || user) {
+      console.log(`user: ${user}`)
+      console.log(`error: ${error}`)
+    }
     // if (error) return callback(error);
     // Connect user
     socket.join(room);
+    // Update server model of online users.
+    let onlineUserCount = addRoomOrIncrementOnlineUsers(room)
     // Send welcome message to user
     socket.emit("message", {
       user: "admin",
@@ -137,6 +142,7 @@ io.on("connect", (socket) => {
     io.to(room).emit("roomData", {
       room: room,
       users: getUsersInRoom(room),
+      onlineUserCount
     });
 
     // callback();
@@ -180,10 +186,11 @@ io.on("connect", (socket) => {
     callback();
   });
 
-  socket.on("room-disconnect", () => {
+  socket.on("room-disconnect", ({ room }) => {
     const removedUser = removeUser(socket.id);
     console.log(socket.id, removedUser)
     if (removedUser) {
+      let newUserCount = decrementOnlineUsers(room)
       io.to(removedUser.room).emit("message", {
         user: "Admin",
         text: `${removedUser.name} disconnected`,
@@ -191,6 +198,7 @@ io.on("connect", (socket) => {
       io.to(removedUser.room).emit("roomData", {
         room: removedUser.room,
         users: getUsersInRoom(removedUser.room),
+        onlineUserCount: newUserCount
       });
     }
   });

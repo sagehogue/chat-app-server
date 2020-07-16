@@ -4,21 +4,22 @@ const users = [];
 // array of active rooms
 const rooms = [];
 
-export const addRoomOrIncrementOnlineUsers = ({ room }) => {
+const addRoomOrIncrementOnlineUsers = ({ room }) => {
   console.log(room)
   room = room.trim().toLowerCase();
   const existingRoom = rooms.find((onlineRoom) => onlineRoom.roomName === room);
   // some custom errors
   if (existingRoom) {
     existingRoom.online++
+    return existingRoom.online
   } else {
     const newRoom = { roomName: room, online: 1 }
     rooms.push(newRoom)
+    return newRoom.online;
   }
-  return newRoom;
 };
 
-export const decrementOnlineUsers = ({ room }) => {
+const decrementOnlineUsers = ({ room }) => {
   console.log(room)
   room = room.trim().toLowerCase();
   const existingRoom = rooms.find((onlineRoom) => onlineRoom.roomName === room);
@@ -26,9 +27,11 @@ export const decrementOnlineUsers = ({ room }) => {
   if (existingRoom) {
     if (existingRoom.online > 1) {
       existingRoom.online--
+      return existingRoom.online
     } else {
       let index = rooms.findIndex(onlineRoom => onlineRoom.roomName === room)
       rooms.splice(index, 1)
+      return 0
     }
   }
   return newRoom;
@@ -71,4 +74,4 @@ const getUser = (id) => users.find((user) => user.id === id);
 
 const getUsersInRoom = (room) => users.filter((user) => user.room === room);
 
-module.exports = { addUser, removeUser, getUser, getUsersInRoom };
+module.exports = { addUser, removeUser, getUser, getUsersInRoom, addRoomOrIncrementOnlineUsers, decrementOnlineUsers };
