@@ -60,18 +60,6 @@ const getCurrentTime = () => {
 const getMessageHistory = async (roomName) => {
   const roomRef = db.doc(`rooms/${roomName}`);
   let room = await roomRef.get();
-  // DEAD COMMENTED CODE (I believe) /*
-  // room => {
-  //   if (docSnapshot.exists) {
-  //     usersRef.onSnapshot((doc) => {
-  //       // do stuff with the data
-  //       console.log("Here's the doc:\n" + doc)
-  //     });
-  //   } else {
-  //     console.log("NOPE NO DOC HERE")
-  //   }
-  // };
-  // *\
   if (room.exists) {
     return await room.data().messageHistory;
   } else {
@@ -222,54 +210,43 @@ io.on("connect", (socket) => {
     callback();
   });
 
-  // INCOMPLETE EVENT
   // Event fires when user closes chat window
   socket.on("room-disconnect", ({ room }) => {
+    
     // updates user location in internal model. this is important for keeping status accurate.
     changeUserLocation(socket.id, false)
     
     // Update count of online users in given room.
     decrementOnlineUsers(room)
 
+    // Send message to FE that user has left
+    socket.broadcast.to(room).emit("user-disconnect", {user: name, id: socket.id});
+
     // Send updated roomData to connected users
+    const updatedRoomUserArray = getUsersInRoom(room)
     io.to(room).emit("roomData", {
       room: room,
-      users: getUsersInRoom(room),
-      onlineUserCount
+      users: updatedRoomUserArray,
+      onlineUserCount: updatedRoomUserArray.length
     });
-
-    // Currently it removes the user from the online model completely - this is not functioning as intended
-    // Currently it deletes users from the online registry completely even if they're online just not in a room. 
-    // OLD LOGIC ---
-    // const removedUser = removeUser(socket.id);
-    // console.log(socket.id, removedUser)
-    // if (removedUser) {
-    //   let newUserCount = decrementOnlineUsers(room)
-    //   io.to(removedUser.room).emit("message", {
-    //     user: "Admin",
-    //     text: `${removedUser.name} disconnected`,
-    //   });
-    //   io.to(removedUser.room).emit("roomData", {
-    //     room: removedUser.room,
-    //     users: getUsersInRoom(removedUser.room),
-    //     onlineUserCount: newUserCount
-    //   });
-    // }
-    //  --- /OLDLOGIC
-
   });
+
   // Event fires when user disconnects from socket instance.
   socket.on('disconnecting', (reason) => {
+    let rooms, i
+
     // finds rooms user is in.
-    let rooms = Object.keys(socket.rooms);
-    console.log(`User disconnecting from ${rooms}`)
-    // decrements user count of all rooms user was connected to.
-    let i;
-    // updates online user count in rooms user was actively in
+    rooms = Object.keys(socket.rooms);
+
+    // Sends user-disconnect events to rooms user was active in.
     for (i = 0; i < rooms.length; i++) {
-      decrementOnlineUsers(rooms[i])
+      socket.broadcast.to(rooms[i]).emit("user-disconnect", {user: name, id: socket.id});
     }
+    // SEND UPDATED ROOMDATA TO ROOMS
     // ...
+
+    // remove user from online users
+    removeUser(socket.id)
   });
 
 });
