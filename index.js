@@ -13,6 +13,10 @@ const serviceAccount = require("./API_KEY.json"); // firebase API key
 // 1) Delete dead code
 // 2) Complete online user model - currently nonfunctional/half complete
 
+// List of socket events in use:
+// "connect", "join", "message", "register-user", "login", "room-disconnect", 
+// "user-join", "disconnecting"
+
 // Initialization of express app + socket.io
 const app = express();
 const server = http.createServer(app);
@@ -123,7 +127,10 @@ io.on("connect", (socket) => {
     // Connect user
     socket.join(room);
 
-    // Update server model of online users.
+    // Update user's location
+    changeUserLocation({id: socket.id, newRoom: room})
+
+    // Increment online user counter for the room the user just joined
     console.log(`username: ${name} room: ${room}`)
     let onlineUserCount = addRoomOrIncrementOnlineUsers(room)
 
@@ -134,29 +141,27 @@ io.on("connect", (socket) => {
       time: getCurrentTime()
     });
 
+    // Send "user-join" event to other users in room.
+    socket.broadcast.to(room).emit("user-join", {user: name, id: socket.id});
+
     // Get Messages
     let messageHistory;
-    console.log(`user ${name} has joined room ${room}`)
     getMessageHistory(room).then(msgs => {
 
-      // Message History is blank or found.
+      // messageHistory will be empty or successfully retrieved
       messageHistory = (msgs == "Room not found." ? [] : msgs);
       console.log(`Messagehistory:\n${messageHistory}`)
 
       // Send messageHistory to user
       socket.emit("messageHistory", messageHistory);
     });
-    console.log(getUsersInRoom(room))
 
-    // Send announcement to room that user has joined.
-    socket.broadcast
-      .to(room)
-      .emit("message", { user: "admin", text: `${name} has joined!` });
     // Send updated roomData event to connected users so their front-end can be updated to reflect the state of the room.
+    const updatedRoomUserArray = getUsersInRoom(room)
     io.to(room).emit("roomData", {
       room: room,
-      users: getUsersInRoom(room),
-      onlineUserCount
+      users: updatedRoomUserArray,
+      onlineUserCount: updatedRoomUserArray.length
     });
 
     // Not sure what this was for, I don't recall trying to utilize any callbacks after a room join. Perhaps I could do password validation and utilize callbacks to report
@@ -220,9 +225,18 @@ io.on("connect", (socket) => {
   // INCOMPLETE EVENT
   // Event fires when user closes chat window
   socket.on("room-disconnect", ({ room }) => {
-
     // updates user location in internal model. this is important for keeping status accurate.
     changeUserLocation(socket.id, false)
+    
+    // Update count of online users in given room.
+    decrementOnlineUsers(room)
+
+    // Send updated roomData to connected users
+    io.to(room).emit("roomData", {
+      room: room,
+      users: getUsersInRoom(room),
+      onlineUserCount
+    });
 
     // Currently it removes the user from the online model completely - this is not functioning as intended
     // Currently it deletes users from the online registry completely even if they're online just not in a room. 
