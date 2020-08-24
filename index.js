@@ -3,13 +3,17 @@ const express = require("express");
 const socketio = require("socket.io");
 const cors = require("cors");
 const admin = require("firebase-admin");
+// for objects
+const util = require('util')
 
-
-const { addUser, removeUser, getUser, getUsersInRoom, addRoomOrIncrementOnlineUsers, decrementOnlineUsers } = require("./users");
+// Functions for manipulating server model of active users
+const { addUser, removeUser, getUser, getUsersInRoom, addRoomOrIncrementOnlineUsers, decrementOnlineUsers, changeUserLocation } = require("./users");
 
 const router = require("./router");
+// firebase API key
 const serviceAccount = require("./API_KEY.json");
 
+// Initialization of express app + socket.io
 const app = express();
 const server = http.createServer(app);
 const io = socketio(server);
@@ -21,12 +25,23 @@ admin.initializeApp({
   databaseURL: "https://chat-app-c2d82.firebaseio.com",
 });
 
+// enabling CORS
 app.use(cors());
 app.use(router);
 
+// firebase database reference
+
 db = admin.firestore();
+
+// getting references to the collection of pre-existing rooms in firebase.
+// remember "collections" are groups of "documents" in firebase.
+// documents can be different datatypes but I am using objects. a collection could be imagined as an array of objects, but you interact
+// with it a little differently than you would an array of objects.
+
 const roomsRef = db.collection("rooms");
 const testRef = roomsRef.doc("test");
+
+// a function for creating timestamp strings
 
 const getCurrentTime = () => {
   let today = new Date();
@@ -36,27 +51,23 @@ const getCurrentTime = () => {
   return dateTime
 }
 
-// Testing firebase functionality
-
 // Fetches message history of a given room. Requires roomName string.
+
 const getMessageHistory = async (roomName) => {
-  // console.log(`Looking up roomName: ${roomName} in getMessageHistory`)
   const roomRef = db.doc(`rooms/${roomName}`);
   let room = await roomRef.get();
-  // console.log("RoomRef: " + roomRef)
-  // console.log("Room: " + room)
-  // console.log("Room data: " + await room.data())
-  // console.log("Room exists? " + room.exists);
-  room => {
-    if (docSnapshot.exists) {
-      usersRef.onSnapshot((doc) => {
-        // do stuff with the data
-        console.log("Here's the doc:\n" + doc)
-      });
-    } else {
-      console.log("NOPE NO DOC HERE")
-    }
-  };
+  // DEAD COMMENTED CODE (I believe) /*
+  // room => {
+  //   if (docSnapshot.exists) {
+  //     usersRef.onSnapshot((doc) => {
+  //       // do stuff with the data
+  //       console.log("Here's the doc:\n" + doc)
+  //     });
+  //   } else {
+  //     console.log("NOPE NO DOC HERE")
+  //   }
+  // };
+  // *\
   if (room.exists) {
     return await room.data().messageHistory;
   } else {
@@ -87,91 +98,92 @@ const addMessageToRoom = async (message, roomName) => {
   }
 };
 
-// socket.io event listenerss
-
+// socket.io event listeners
+// they work by listening for the event named by the string argument.
 io.on("connect", (socket) => {
-  // Add user to user list
+
+  // gets displayName from socket
   const displayName = socket.handshake.query.displayName
-  console.log("displayName: " + displayName)
+
+  // Add user to user list
   const { error, user } = addUser({
     id: socket.id,
     name: displayName,
   });
+
+  // some lazy error handling - should be improved upon
   if (error || user) {
     console.log(`user: ${user}`)
     console.log(`error: ${error}`)
   }
-  // const auth = admin.auth.onAuthStateChanged(function (user) {
-  //   // listens for logins, logouts, registrations and fires. Undefined or null if no user logged in, user object provided if logged in.
-  //   window.user = user; // user is undefined if no user signed in, window.user is accessible in other functions and kept current
-  //   if (user) {
-  //     console.log(user);
-  //     socket.emit("login-successful", user);
-  //     // handle
-  //   } else {
-  //     // handle
-  //   }
-  // });
-  socket.on("join", ({ name, room }, callback) => {
-    // // Add user to user list
-    // const { error, user } = addUser({
-    //   id: socket.id,
-    //   name,
-    //   room,
-    // });
-    // Error occured
 
-    // if (error) return callback(error);
+  // a "join" event is expected to be accompanied by some data. a room to be joined and the username of the user joining
+  socket.on("join", ({ name, room }, callback) => {
+
     // Connect user
     socket.join(room);
+
     // Update server model of online users.
     console.log(`username: ${name} room: ${room}`)
     let onlineUserCount = addRoomOrIncrementOnlineUsers(room)
+
     // Send welcome message to user
     socket.emit("message", {
       user: "admin",
       text: `${name}, welcome to room ${room}.`,
       time: getCurrentTime()
     });
+
     // Get Messages
     let messageHistory;
     console.log(`user ${name} has joined room ${room}`)
     getMessageHistory(room).then(msgs => {
+
       // Message History is blank or found.
       messageHistory = (msgs == "Room not found." ? [] : msgs);
-      // Send messageHistory to user
       console.log(`Messagehistory:\n${messageHistory}`)
+
+      // Send messageHistory to user
       socket.emit("messageHistory", messageHistory);
     });
-    // Send announcement to room that user has joined.
     console.log(getUsersInRoom(room))
+
+    // Send announcement to room that user has joined.
     socket.broadcast
       .to(room)
       .emit("message", { user: "admin", text: `${name} has joined!` });
+    // Send updated roomData event to connected users so their front-end can be updated to reflect the state of the room.
     io.to(room).emit("roomData", {
       room: room,
       users: getUsersInRoom(room),
       onlineUserCount
     });
 
+    // Not sure what this was for, I don't recall trying to utilize any callbacks after a room join. Perhaps I could do password validation and utilize callbacks to report
+    // success or failure?
     // callback();
   });
 
+  // email, password expected
   socket.on("register-user", ({ email, password }) => {
-    admin
-      .auth()
-      .createUserWithEmailAndPassword(email, password)
+
+    // create user account with firebase
+    admin.auth().createUserWithEmailAndPassword(email, password)
       .then((res) => {
+
+        // if successful, emit success event to front-end
         socket.emit("register-user-success");
       })
       .catch(function (error) {
-        // Handle Errors here.
+
+        // Handle Errors here. Needs improvement
         var errorCode = error.code;
         var errorMessage = error.message;
         // ...
       });
   });
 
+  // email, password expected
   socket.on("login", ({ email, password }) => {
     admin
       .auth()
@@ -185,41 +197,60 @@ io.on("connect", (socket) => {
   });
 
   socket.on("sendMessage", ({ content: { text, user, time, room } }, callback) => {
+
+    // socket id of message author
     const sender = getUser(socket.id);
-    // console.log(user);
-    const message = { user: user, text, time }
-    console.log("sendMessage event detected! content:\n" + { user: user, text, time })
+
+    // actual message
+    const message = { user, text, time, room }
+
+    // console.logs to view message for lazy debugging purposes
+    console.log("sendMessage event detected! content:\n" + util.inspect(message, {showHidden: false, depth: null}))
+    console.log(util.inspect(sender, {showHidden: false, depth: null}))
+
+    // actual sending of message to other clients
     io.to(sender.room).emit("message", message);
+
+    // update messageHistory in database with new message
     addMessageToRoom(message, room);
 
     callback();
   });
 
   socket.on("room-disconnect", ({ room }) => {
-    const removedUser = removeUser(socket.id);
-    console.log(socket.id, removedUser)
-    if (removedUser) {
-      let newUserCount = decrementOnlineUsers(room)
-      io.to(removedUser.room).emit("message", {
-        user: "Admin",
-        text: `${removedUser.name} disconnected`,
-      });
-      io.to(removedUser.room).emit("roomData", {
-        room: removedUser.room,
-        users: getUsersInRoom(removedUser.room),
-        onlineUserCount: newUserCount
-      });
-    }
+    // Event fires when user closes chat window
+    changeUserLocation(socket.id, false)
+    // Currently it removes the user from the online model completely - this is not functioning as intended
+    // Currently it deletes users from the online registry completely even if they're online just not in a room. 
+    // OLD LOGIC ---
+    // const removedUser = removeUser(socket.id);
+    // console.log(socket.id, removedUser)
+    // if (removedUser) {
+    //   let newUserCount = decrementOnlineUsers(room)
+    //   io.to(removedUser.room).emit("message", {
+    //     user: "Admin",
+    //     text: `${removedUser.name} disconnected`,
+    //   });
+    //   io.to(removedUser.room).emit("roomData", {
+    //     room: removedUser.room,
+    //     users: getUsersInRoom(removedUser.room),
+    //     onlineUserCount: newUserCount
+    //   });
+    // }
+    //  --- /OLDLOGIC
+
   });
   socket.on('disconnecting', (reason) => {
     let rooms = Object.keys(socket.rooms);
     console.log(`User disconnecting from ${rooms}`)
     let i;
+    // updates online user count in rooms user was actively in
     for (i = 0; i < rooms.length; i++) {
       decrementOnlineUsers(rooms[i])
     }
     // ...
   });
+
 });
 server.listen(process.env.PORT || 5000, () =>
   console.log(`Server has started on port ${process.env.PORT || 5000}.`)
