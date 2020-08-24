@@ -3,15 +3,15 @@ const express = require("express");
 const socketio = require("socket.io");
 const cors = require("cors");
 const admin = require("firebase-admin");
-// for objects
-const util = require('util')
-
+const util = require('util') // for objects
 // Functions for manipulating server model of active users
 const { addUser, removeUser, getUser, getUsersInRoom, addRoomOrIncrementOnlineUsers, decrementOnlineUsers, changeUserLocation } = require("./users");
-
 const router = require("./router");
-// firebase API key
-const serviceAccount = require("./API_KEY.json");
+const serviceAccount = require("./API_KEY.json"); // firebase API key
+
+// TODOS:
+// 1) Delete dead code
+// 2) Complete online user model - currently nonfunctional/half complete
 
 // Initialization of express app + socket.io
 const app = express();
@@ -217,9 +217,13 @@ io.on("connect", (socket) => {
     callback();
   });
 
+  // INCOMPLETE EVENT
+  // Event fires when user closes chat window
   socket.on("room-disconnect", ({ room }) => {
-    // Event fires when user closes chat window
+
+    // updates user location in internal model. this is important for keeping status accurate.
     changeUserLocation(socket.id, false)
+
     // Currently it removes the user from the online model completely - this is not functioning as intended
     // Currently it deletes users from the online registry completely even if they're online just not in a room. 
     // OLD LOGIC ---
@@ -240,9 +244,12 @@ io.on("connect", (socket) => {
     //  --- /OLDLOGIC
 
   });
+  // Event fires when user disconnects from socket instance.
   socket.on('disconnecting', (reason) => {
+    // finds rooms user is in.
     let rooms = Object.keys(socket.rooms);
     console.log(`User disconnecting from ${rooms}`)
+    // decrements user count of all rooms user was connected to.
     let i;
     // updates online user count in rooms user was actively in
     for (i = 0; i < rooms.length; i++) {
