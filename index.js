@@ -211,8 +211,8 @@ io.on("connect", (socket) => {
   });
 
   // Event fires when user closes chat window
-  socket.on("room-disconnect", ({ room }) => {
-    
+  socket.on("room-disconnect", ({ room, name }) => {
+    console.log(name, room)
     // updates user location in internal model. this is important for keeping status accurate.
     changeUserLocation(socket.id, false)
     
@@ -238,9 +238,11 @@ io.on("connect", (socket) => {
     // finds rooms user is in.
     rooms = Object.keys(socket.rooms);
 
+    // use socket.id to find username
+    const username = getUser(socket.id).name
     // Sends user-disconnect events to rooms user was active in.
     for (i = 0; i < rooms.length; i++) {
-      socket.broadcast.to(rooms[i]).emit("user-disconnect", {user: name, id: socket.id});
+      socket.broadcast.to(rooms[i]).emit("user-disconnect", {user: username, id: socket.id});
     }
     // SEND UPDATED ROOMDATA TO ROOMS
     // ...
