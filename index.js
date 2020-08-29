@@ -202,7 +202,7 @@ io.on("connect", (socket) => {
     console.log(util.inspect(sender, {showHidden: false, depth: null}))
 
     // actual sending of message to other clients
-    io.to(sender.room).emit("message", message);
+    socket.broadcast.to(sender.room).emit("message", message);
 
     // update messageHistory in database with new message
     addMessageToRoom(message, room);
