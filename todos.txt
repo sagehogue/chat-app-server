@@ -1,0 +1,9 @@
+* Users never time out on firebase.
+
+* No error handling
+
+* User status system needs to be finished
+
+* Friend system needs to be designed and implemented
+
+* Disconnect/Reconnect may need some attention
