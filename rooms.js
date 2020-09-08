@@ -28,14 +28,21 @@ const addUserToRoom = (user, room) => {
   const roomToAddUserTo = rooms.find(
     (onlineRoom) => onlineRoom.roomName === room
   );
+  if (roomToAddUserTo) {
+    // add it to the array of online users in given room
+    roomToAddUserTo.users.push(user);
 
-  // add it to the array of online users in given room
-  roomToAddUserTo.users.push(user);
+    roomToAddUserTo.online++;
 
-  roomToAddUserTo.online++;
+    // return room user was added to.
+    return { roomToAddUserTo };
+  } else {
+    addRoom(room, user);
+  }
+};
 
-  // return room user was added to.
-  return { roomToAddUserTo };
+const getRoomInfo = (room) => {
+  rooms.filter((activeRoom) => activeRoom.roomName === room);
 };
 
 //  remove user from room and decrements online user count. Removes room if no users are active.
@@ -66,4 +73,5 @@ module.exports = {
   addRoom,
   removeUserFromRoom,
   addUserToRoom,
+  getRoomInfo,
 };
