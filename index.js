@@ -170,6 +170,10 @@ io.on("connect", (socket) => {
 
     // Send updated roomData event to connected users so their front-end can be updated to reflect the state of the room.
     updateClientRoomData(room);
+
+    // Send most populous rooms to clients.
+    const topRooms = getMostPopulousRooms(8);
+    socket.broadcast.emit("top8Rooms", topRooms);
   });
 
   // email, password expected
@@ -247,6 +251,9 @@ io.on("connect", (socket) => {
 
     // Send updated roomData to connected users
     updateClientRoomData(room);
+    //
+    const topRooms = getMostPopulousRooms(8);
+    socket.broadcast.emit("top8Rooms", topRooms);
   });
 
   socket.on("requestTop8Rooms", () => {
@@ -272,6 +279,8 @@ io.on("connect", (socket) => {
     });
     // remove user from online users
     removeUser(socket.id);
+    const topRooms = getMostPopulousRooms(8);
+    socket.broadcast.emit("top8Rooms", topRooms);
   });
 });
 server.listen(process.env.PORT || 5000, () =>
