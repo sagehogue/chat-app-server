@@ -1,5 +1,8 @@
 // TODOS:
 // Implement better user tracking - need to be able to list all users present in each room.
+// Need to calculate the most populated rooms - perhaps a func like determineMostPopulatedRooms can run after each
+// user join/leave and I can create a second array populated with the results. Then clients can request the array
+// when they boot up the join component.
 
 // array of active rooms
 // room obj looks like { roomName: room, online: count }
@@ -7,11 +10,13 @@ const rooms = [];
 
 const addRoom = (roomName, user = false) => {
   roomName = roomName.trim().toLowerCase();
-  const existingRoom = rooms.find((onlineRoom) => onlineRoom.roomName === room);
+  const existingRoom = rooms.find(
+    (onlineRoom) => onlineRoom.roomName === roomName
+  );
   if (existingRoom) {
     return existingRoom;
   } else {
-    const newRoom = { roomName: room, online: 1, users: [] };
+    const newRoom = { roomName: roomName, online: 1, users: [] };
     // if user is provided, user is added to room's userlist
     if (user) {
       newRoom.users.push(user);
@@ -42,7 +47,9 @@ const addUserToRoom = (user, room) => {
 };
 
 const getRoomInfo = (room) => {
-  rooms.filter((activeRoom) => activeRoom.roomName === room);
+  const data = rooms.filter((activeRoom) => activeRoom.roomName === room);
+  console.log(`Room Data: ${data[0]}`);
+  return data[0];
 };
 
 //  remove user from room and decrements online user count. Removes room if no users are active.

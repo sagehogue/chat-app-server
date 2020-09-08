@@ -17,7 +17,12 @@ const {
 } = require("./users");
 
 // Functions for manipulating server model of active rooms
-const { addRoom, removeUserFromRoom, addUserToRoom } = require("./rooms");
+const {
+  addRoom,
+  removeUserFromRoom,
+  addUserToRoom,
+  getRoomInfo,
+} = require("./rooms");
 
 // Helper functions
 const { getCurrentTime } = require("./util");
@@ -93,13 +98,22 @@ const addMessageToRoom = async (message, roomName) => {
   }
 };
 
-const updateClientRoomData = (room) => {
-  const roomData = getRoomInfo(room);
-  io.to(room).emit("roomData", {
-    room: roomData.roomName,
-    users: roomData.users,
-    onlineUserCount: roomData.online,
-  });
+const updateClientRoomData = async (room) => {
+  const promise = new Promise((resolve, reject) => {
+    resolve(getRoomInfo(room));
+  })
+    .then((roomInfo) => {
+      console.log(roomInfo);
+      io.to(room).emit("roomData", {
+        room: roomInfo.roomName,
+        users: roomInfo.users,
+        onlineUserCount: roomInfo.online,
+      });
+    })
+    .catch((err) => {
+      // ...error handling
+      console.log(`Whoops, we had an error! \n${err}`);
+    });
 };
 
 // socket.io event listeners
