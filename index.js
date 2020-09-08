@@ -22,6 +22,7 @@ const {
   removeUserFromRoom,
   addUserToRoom,
   getRoomInfo,
+  getMostPopulousRooms,
 } = require("./rooms");
 
 // Helper functions
@@ -246,6 +247,11 @@ io.on("connect", (socket) => {
 
     // Send updated roomData to connected users
     updateClientRoomData(room);
+  });
+
+  socket.on("requestTop8Rooms", () => {
+    const topRooms = getMostPopulousRooms(8);
+    socket.emit("top8Rooms", topRooms);
   });
 
   // Event fires when user disconnects from socket instance.

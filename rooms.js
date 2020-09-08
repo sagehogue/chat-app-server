@@ -52,6 +52,15 @@ const getRoomInfo = (room) => {
   return data[0];
 };
 
+// Retrieves the given quantity of most populated rooms
+const getMostPopulousRooms = (quantity) => {
+  rooms.sort((a, b) => b.online - a.online);
+  const dupeArray = [...rooms];
+  let mostPopulated = dupeArray.splice(0, quantity);
+  console.log(mostPopulated);
+  return mostPopulated;
+};
+
 //  remove user from room and decrements online user count. Removes room if no users are active.
 const removeUserFromRoom = (user, room) => {
   // finds room
@@ -81,4 +90,5 @@ module.exports = {
   removeUserFromRoom,
   addUserToRoom,
   getRoomInfo,
+  getMostPopulousRooms,
 };
