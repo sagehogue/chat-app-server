@@ -261,6 +261,40 @@ io.on("connect", (socket) => {
     socket.emit("top8Rooms", topRooms);
   });
 
+  // handles creation of new rooms by users
+  socket.on(
+    "createNewRoom",
+    ({ roomName, passwordProtected, password, creator }) => {
+      console.log(
+        `createNewRoom event detected! \n ${
+          (roomName, passwordProtected, password, creator)
+        }`
+      );
+      roomsRef
+        .doc(roomName)
+        .get()
+        .then((data) => {
+          if (data.exists) {
+            console.log("Error: roomName already taken");
+            return "Error: roomName already taken";
+          } else {
+            const res = roomsRef
+              .doc(roomName)
+              .set({
+                roomName: roomName,
+                creator: creator,
+                passwordProtected: passwordProtected,
+                password: password,
+                members: [creator],
+              })
+              .then((res) => {
+                return "Success! New Room created.";
+              });
+          }
+        });
+    }
+  );
+
   // Event fires when user disconnects from socket instance.
   socket.on("disconnecting", () => {
     const rooms = Object.keys(socket.rooms);
