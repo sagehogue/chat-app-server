@@ -343,36 +343,92 @@ io.on("connect", (socket) => {
   // handles creation of new rooms by users
   socket.on(
     "createNewRoom",
-    ({ roomName, passwordProtected, password, creator }) => {
-      console.log(
-        `createNewRoom event detected! \n ${
-          (roomName, passwordProtected, password, creator)
-        }`
-      );
+    ({ roomName, passwordProtected, password, creator, creatorUID }) => {
       roomsRef
-        .doc(roomName)
-        .get()
-        .then((data) => {
-          if (data.exists) {
-            console.log("Error: roomName already taken");
-            return "Error: roomName already taken";
-          } else {
-            const res = roomsRef
-              .doc(roomName)
-              .set({
-                roomName: roomName,
-                creator: creator,
-                passwordProtected: passwordProtected,
-                password: password,
-                members: [creator],
-              })
-              .then((res) => {
-                return "Success! New Room created.";
-              });
-          }
+        .add({
+          roomName: roomName,
+          creator: creator,
+          passwordProtected: passwordProtected,
+          password: password,
+          members: [{ displayName: creator, uid: creatorUID, role: "creator" }],
+        })
+        .then(async (res) => {
+          const userRef = usersRef.doc(creatorUID);
+          const result = await userRef.update({
+            rooms: admin.firestore.FieldValue.arrayUnion({
+              id: res.id,
+              roomName: roomName,
+            }),
+          });
+          return "Success! New Room created with ID: " + res.id;
         });
+      // .get()
+      // .then((data) => {
+      //   if (data.exists) {
+      //     console.log("Error: roomName already taken");
+      //     return "Error: roomName already taken";
+      //   } else {
+      //     const res = roomsRef
+
+      //   }
+      // });
     }
   );
+
+  socket.on("add-user-room", async ({ uid, roomID, favorite = false }) => {
+    // addNewSavedRoom(userUID, roomUID)
+    const userRef = usersRef.doc(uid);
+    const res = await userRef.update({
+      rooms: admin.firestore.FieldValue.arrayUnion({
+        id: roomID,
+        favorite: favorite,
+      }),
+    });
+  });
+
+  socket.on("remove-user-room", async ({ uid, roomID }) => {
+    // addNewSavedRoom(userUID, roomUID)
+    const userRef = usersRef.doc(uid);
+    const res = await userRef.update({
+      rooms: admin.firestore.FieldValue.arrayRemove({ id: roomID }),
+    });
+  });
+
+  socket.on("add-friend", async ({ uid, friendUID }) => {
+    // addNewSavedRoom(userUID, roomUID)
+    const userRef = usersRef.doc(uid);
+    const friendRef = usersRef.doc(friendUID);
+    const addFriendRes = await userRef.update({
+      friends: admin.firestore.FieldValue.arrayUnion({
+        uid: friendUID,
+        displayName: friendRef.displayName,
+        isFriend: "sent",
+      }),
+    });
+    const friendReceiveRequestRes = await friendRef.update({
+      friends: admin.firestore.FieldValue.arrayUnion({
+        uid: uid,
+        displayName: userRef.displayName,
+        isFriend: "pending",
+      }),
+    });
+  });
+
+  socket.on("remove-friend", async ({ uid, friendUID }) => {
+    // addNewSavedRoom(userUID, roomUID)
+    const userRef = usersRef.doc(uid);
+    const friendRef = usersRef.doc(friendUID);
+    const removeFriendRes = await userRef.update({
+      friends: admin.firestore.FieldValue.arrayRemove({
+        uid: friendUID,
+      }),
+    });
+    const removeUserFromFriendRes = await friendRef.update({
+      friends: admin.firestore.FieldValue.arrayRemove({
+        uid: uid,
+      }),
+    });
+  });
 
   // Event fires when user disconnects from socket instance.
   socket.on("disconnecting", () => {
