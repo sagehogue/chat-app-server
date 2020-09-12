@@ -63,6 +63,7 @@ db = admin.firestore();
 // remember "collections" are groups of "documents" in firebase.
 
 const roomsRef = db.collection("rooms");
+const usersRef = db.collection("users");
 const testRef = roomsRef.doc("test");
 
 // Fetches message history of a given room. Requires roomName string.
@@ -177,22 +178,100 @@ io.on("connect", (socket) => {
   });
 
   // email, password expected
-  socket.on("register-user", ({ email, password }) => {
+  socket.on("register-user", ({ email, password, displayName, uid }) => {
+    // CREATE FIRESTORE USER DOC WITH INFORMATION, UID. WE WILL USE THIS TO TIE AUTH TO FRIENDS/ROOMS/OTHER USER INFO
+    const userRef = usersRef.doc(uid);
+    userRef.get().then((data) => {
+      if (data.exists) {
+        console.log("Error: User already exists.");
+        return "Error: User already exists.";
+      } else {
+        const res = userRef
+          .set({
+            email,
+            displayName,
+            friends: [],
+            rooms: [],
+            avatar: "",
+          })
+          .then((res, displayName, email) => {
+            socket.emit("register-user-success", {
+              email,
+              displayName,
+            });
+            return "Success! New user registered.";
+          });
+      }
+    });
     // create user account with firebase
-    admin
-      .auth()
-      .createUserWithEmailAndPassword(email, password)
-      .then((res) => {
-        // if successful, emit success event to front-end
-        socket.emit("register-user-success");
-      })
-      .catch(function (error) {
+    // admin
+    //   .auth()
+    //   .createUserWithEmailAndPassword(email, password)
+    //   .then((res) => {
+    //     user.updateProfile({
+    //       displayName: username,
+    //     });
+    // if successful, emit success event to front-end
+    socket.emit("register-user-success");
+    // })
+    /*.catch(function (error) {
         // Handle Errors here. Needs improvement
         var errorCode = error.code;
         var errorMessage = error.message;
         // ...
-      });
+      }); */
   });
+
+  // FOLLOWING FUNCTIONS ARE SCAFFOLDED AND NOT TESTED WHATSOEVER
+
+  // should fetch user's data without harming it.
+  socket.on("fetch-user-friends", async (uid) => {
+    const userRef = usersRef.doc(uid);
+    await userRef.get().then((data) => {
+      if (data.exists) {
+        console.log(util.inspect(data, { showHidden: false, depth: null }));
+        socket.emit("user-friends-list", data.friends);
+      }
+    });
+  });
+
+  // should add a friend from their data without harming it.
+  socket.on("add-friend", async (userUID, friendUID) => {
+    const userRef = usersRef.doc(userUID);
+    const friendRef = usersRef.doc(friendUID);
+    await userRef.get().then(async (userdata) => {
+      if (userdata.exists) {
+        const userNewFriends = [...userdata.friends, { uid: friendUID }];
+        console.log(
+          "user data " +
+            util.inspect(userdata, { showHidden: false, depth: null })
+        );
+        await friendRef.get().then((data) => {
+          if (data.exists) {
+            console.log(
+              "friend data " +
+                util.inspect(data, { showHidden: false, depth: null })
+            );
+            userRef.update({ friends: userNewFriends });
+          }
+        });
+      }
+    });
+  });
+
+  // should remove a friend from their data without harming it.
+  socket.on("remove-friend", async (userUID, friendUID) => {
+    const userRef = usersRef.doc(userUID);
+    const friendRef = usersRef.doc(friendUID);
+    await userRef.get().then((data) => {
+      if (data.exists) {
+        // console.log(util.inspect(data, { showHidden: false, depth: null }));
+        // socket.emit("user-friends-list", data.friends);
+      }
+    });
+  });
+
+  // END OF SCAFFOLDING
 
   // email, password expected
   socket.on("login", ({ email, password }) => {
