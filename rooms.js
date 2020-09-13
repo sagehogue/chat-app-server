@@ -1,4 +1,5 @@
 // TODOS:
+// ***MOST IMPORTANT*** Replace all references to rooms by names with references by ID!!!
 // Implement better user tracking - need to be able to list all users present in each room.
 // Need to calculate the most populated rooms - perhaps a func like determineMostPopulatedRooms can run after each
 // user join/leave and I can create a second array populated with the results. Then clients can request the array
@@ -8,15 +9,14 @@
 // room obj looks like { roomName: room, online: count }
 const rooms = [];
 
-const addRoom = (roomName, user = false) => {
-  roomName = roomName.trim().toLowerCase();
-  const existingRoom = rooms.find(
-    (onlineRoom) => onlineRoom.roomName === roomName
-  );
+// room expected to look like {roomID: id, roomName: name}
+const addRoom = (room, user = false) => {
+  const { roomName, id } = room;
+  const existingRoom = rooms.find((onlineRoom) => onlineRoom.id === id);
   if (existingRoom) {
-    return existingRoom;
+    return "Error! Room already online!\n" + existingRoom;
   } else {
-    const newRoom = { roomName: roomName, online: 1, users: [] };
+    const newRoom = { roomName: roomName, id, online: 1, users: [] };
     // if user is provided, user is added to room's userlist
     if (user) {
       newRoom.users.push(user);
@@ -27,12 +27,13 @@ const addRoom = (roomName, user = false) => {
   }
 };
 
-// Adds user too room and increments online user count
+// Adds user to room and increments online user count
+// room expected to look like {roomID: id, roomName: name}
 const addUserToRoom = (user, room) => {
+  const { id } = room;
+  console.log("Room ID in addUserToRoom: " + id);
   // searches for room
-  const roomToAddUserTo = rooms.find(
-    (onlineRoom) => onlineRoom.roomName === room
-  );
+  const roomToAddUserTo = rooms.find((onlineRoom) => onlineRoom.id === id);
   if (roomToAddUserTo) {
     // add it to the array of online users in given room
     roomToAddUserTo.users.push(user);
@@ -40,14 +41,16 @@ const addUserToRoom = (user, room) => {
     roomToAddUserTo.online++;
 
     // return room user was added to.
-    return { roomToAddUserTo };
+    return roomToAddUserTo;
   } else {
-    addRoom(room, user);
+    return addRoom(room, user);
   }
 };
 
-const getRoomInfo = (room) => {
-  const data = rooms.filter((activeRoom) => activeRoom.roomName === room);
+// takes a roomID, returns information about it
+const getRoomInfo = (roomID) => {
+  const data = rooms.filter((activeRoom) => activeRoom.id === roomID);
+  console.log(rooms);
   console.log(`Room Data: ${data[0]}`);
   return data[0];
 };
@@ -62,10 +65,10 @@ const getMostPopulousRooms = (quantity) => {
 };
 
 //  remove user from room and decrements online user count. Removes room if no users are active.
-const removeUserFromRoom = (user, room) => {
+const removeUserFromRoom = (user, roomID) => {
   // finds room
   const roomToRemoveUserFrom = rooms.find(
-    (onlineRoom) => onlineRoom.roomName === room
+    (onlineRoom) => onlineRoom.id === roomID
   );
   if (roomToRemoveUserFrom) {
     // if more than 1 user in room, count is decremented, user removed
@@ -78,7 +81,7 @@ const removeUserFromRoom = (user, room) => {
       return roomToRemoveUserFrom;
       // only 1 user? removed room from list of active rooms entirely.
     } else {
-      let index = rooms.findIndex((onlineRoom) => onlineRoom.roomName === room);
+      let index = rooms.findIndex((onlineRoom) => onlineRoom.id === roomID);
       rooms.splice(index, 1);
       return 0;
     }

@@ -4,55 +4,9 @@ const util = require("util");
 //
 // 1) Implement status feature
 // 2) Handle reconnections
-// 3) Allow users to change room status - currently out of sync with FE state
 
-// array of online users
-// user obj looks like { id, name, room }
+// array of online users. user obj looks like { id, name, room }
 const users = [];
-const rooms = [];
-// actually managing the online user count by looping through online users
-// checking what type room they're in. not tracking online users through
-// object property anymore.
-
-// Increments online user count or creates a new room in the online room array if given room is new.
-const addRoomOrIncrementOnlineUsers = (room) => {
-  room = room.trim().toLowerCase();
-  const existingRoom = rooms.find((onlineRoom) => onlineRoom.roomName === room);
-  // some custom errors
-  if (existingRoom) {
-    existingRoom.online++;
-    console.log("Users online: " + existingRoom.online);
-    return existingRoom.online;
-  } else {
-    const newRoom = { roomName: room, online: 1 };
-    rooms.push(newRoom);
-    console.log("Users online: " + newRoom.online);
-    return newRoom.online;
-  }
-};
-
-// Decrements online user count of a given room. Removes room if empty after decrementing.
-const decrementOnlineUsers = (room) => {
-  room = room.trim().toLowerCase();
-  console.log(
-    `Room to decrement: ${room}\n Active Rooms: ${util.inspect(rooms, {
-      showHidden: false,
-      depth: null,
-    })}`
-  );
-  const existingRoom = rooms.find((onlineRoom) => onlineRoom.roomName === room);
-  if (existingRoom) {
-    if (existingRoom.online >= 2) {
-      existingRoom.online--;
-      console.log("Online: " + existingRoom.online);
-      return existingRoom.online;
-    } else {
-      let index = rooms.findIndex((onlineRoom) => onlineRoom.roomName === room);
-      rooms.splice(index, 1);
-      return 0;
-    }
-  }
-};
 
 // Method to add a new user to the array of online users
 const addUser = ({ id, name, room = false }) => {
@@ -100,7 +54,5 @@ module.exports = {
   addUser,
   removeUser,
   getUser,
-  addRoomOrIncrementOnlineUsers,
-  decrementOnlineUsers,
   changeUserLocation,
 };

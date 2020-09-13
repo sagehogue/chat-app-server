@@ -6,15 +6,7 @@ const admin = require("firebase-admin");
 const util = require("util"); // for objects
 
 // Functions for manipulating server model of active users
-const {
-  addUser,
-  removeUser,
-  getUser,
-  getUsersInRoom,
-  addRoomOrIncrementOnlineUsers,
-  decrementOnlineUsers,
-  changeUserLocation,
-} = require("./users");
+const { addUser, removeUser, getUser, changeUserLocation } = require("./users");
 
 // Functions for manipulating server model of active rooms
 const {
@@ -67,8 +59,8 @@ const usersRef = db.collection("users");
 const testRef = roomsRef.doc("test");
 
 // Fetches message history of a given room. Requires roomName string.
-const getMessageHistory = async (roomName) => {
-  const roomRef = db.doc(`rooms/${roomName}`);
+const getMessageHistory = async (roomID) => {
+  const roomRef = db.doc(`rooms/${roomID}`);
   let room = await roomRef.get();
   if (room.exists) {
     return await room.data().messageHistory;
@@ -80,9 +72,9 @@ const getMessageHistory = async (roomName) => {
 
 // Adds message to room thread. Takes a message object and a room name string
 // Message object expected to look like { text, user, time }
-const addMessageToRoom = async (message, roomName) => {
+const addMessageToRoom = async (message, roomID) => {
   const roomsRef = db.collection("rooms");
-  const roomRef = roomsRef.doc(`${roomName}`);
+  const roomRef = roomsRef.doc(`${roomID}`);
   let room = await roomRef.get();
   if (room.exists) {
     roomRef.update({
@@ -101,21 +93,22 @@ const addMessageToRoom = async (message, roomName) => {
 };
 
 const updateClientRoomData = async (room) => {
-  const promise = new Promise((resolve, reject) => {
-    resolve(getRoomInfo(room));
-  })
-    .then((roomInfo) => {
-      console.log(roomInfo);
-      io.to(room).emit("roomData", {
-        room: roomInfo.roomName,
-        users: roomInfo.users,
-        onlineUserCount: roomInfo.online,
-      });
-    })
-    .catch((err) => {
-      // ...error handling
-      console.log(`Whoops, we had an error! \n${err}`);
-    });
+  // const promise = new Promise((resolve, reject) => {
+  //   resolve(getRoomInfo(room.id));
+  // })
+  // .then((roomInfo) => {
+  console.log(getRoomInfo(room.id));
+  const roomInfo = getRoomInfo(room.id);
+  io.to(room.id).emit("roomData", {
+    room: roomInfo.roomName,
+    users: roomInfo.users,
+    onlineUserCount: roomInfo.online,
+  });
+  // })
+  // .catch((err) => {
+  //   // ...error handling
+  //   console.log(`Whoops, we had an error! \n${err}`);
+  // });
 };
 
 // socket.io event listeners
@@ -137,30 +130,31 @@ io.on("connect", (socket) => {
   }
 
   // a "join" event is expected to be accompanied by some data. a room to be joined and the username of the user joining
-  socket.on("join", ({ name, room }, callback) => {
-    let user = { id: socket.id, displayName: name, room: room };
+  socket.on("join", ({ user, room }, callback) => {
     // Connect user
-    socket.join(room);
+    socket.join(room.id);
+
+    user.room = room.name;
 
     // Update room model to reflect new user's presence
     addUserToRoom(user, room);
 
     // Update user's location in userlist
-    changeUserLocation({ id: socket.id, newRoom: room });
+    changeUserLocation({ id: user.id, newRoom: room.id });
 
     // Send welcome message to user
     socket.emit("message", {
       user: "admin",
-      text: `${name}, welcome to room ${room}.`,
+      text: `${user.name}, welcome to room ${room.roomName}.`,
       time: getCurrentTime(),
     });
 
     // Send "user-join" event to other users in room.
-    socket.broadcast.to(room).emit("user-join", { user: name, id: socket.id });
+    socket.broadcast.to(room.id).emit("user-join", user);
 
     // Get Messages
     let messageHistory;
-    getMessageHistory(room).then((msgs) => {
+    getMessageHistory(room.id).then((msgs) => {
       // messageHistory will be empty or successfully retrieved
       messageHistory = msgs == "Room not found." ? [] : msgs;
       console.log(`Messagehistory:\n${messageHistory}`);
@@ -178,7 +172,7 @@ io.on("connect", (socket) => {
   });
 
   // email, password expected
-  socket.on("register-user", ({ email, password, displayName, uid }) => {
+  socket.on("register-user", ({ email, displayName, uid }) => {
     // CREATE FIRESTORE USER DOC WITH INFORMATION, UID. WE WILL USE THIS TO TIE AUTH TO FRIENDS/ROOMS/OTHER USER INFO
     const userRef = usersRef.doc(uid);
     userRef.get().then((data) => {
@@ -222,57 +216,6 @@ io.on("connect", (socket) => {
       }); */
   });
 
-  // FOLLOWING FUNCTIONS ARE SCAFFOLDED AND NOT TESTED WHATSOEVER
-
-  // should fetch user's data without harming it.
-  socket.on("fetch-user-friends", async (uid) => {
-    const userRef = usersRef.doc(uid);
-    await userRef.get().then((data) => {
-      if (data.exists) {
-        console.log(util.inspect(data, { showHidden: false, depth: null }));
-        socket.emit("user-friends-list", data.friends);
-      }
-    });
-  });
-
-  // should add a friend from their data without harming it.
-  socket.on("add-friend", async (userUID, friendUID) => {
-    const userRef = usersRef.doc(userUID);
-    const friendRef = usersRef.doc(friendUID);
-    await userRef.get().then(async (userdata) => {
-      if (userdata.exists) {
-        const userNewFriends = [...userdata.friends, { uid: friendUID }];
-        console.log(
-          "user data " +
-            util.inspect(userdata, { showHidden: false, depth: null })
-        );
-        await friendRef.get().then((data) => {
-          if (data.exists) {
-            console.log(
-              "friend data " +
-                util.inspect(data, { showHidden: false, depth: null })
-            );
-            userRef.update({ friends: userNewFriends });
-          }
-        });
-      }
-    });
-  });
-
-  // should remove a friend from their data without harming it.
-  socket.on("remove-friend", async (userUID, friendUID) => {
-    const userRef = usersRef.doc(userUID);
-    const friendRef = usersRef.doc(friendUID);
-    await userRef.get().then((data) => {
-      if (data.exists) {
-        // console.log(util.inspect(data, { showHidden: false, depth: null }));
-        // socket.emit("user-friends-list", data.friends);
-      }
-    });
-  });
-
-  // END OF SCAFFOLDING
-
   // email, password expected
   socket.on("login", ({ email, password }) => {
     admin
@@ -313,31 +256,24 @@ io.on("connect", (socket) => {
   );
 
   // Event fires when user closes chat window
-  socket.on("room-disconnect", ({ room, name }) => {
+  socket.on("room-disconnect", ({ room, user }) => {
     // socket disconnects from room
-    socket.leave(room);
+    socket.leave(room.id);
 
     // updates user location in internal model.
-    changeUserLocation(socket.id, false);
+    changeUserLocation(room.id, false);
 
     // Update count of online users in given room.
-    removeUserFromRoom({ id: socket.id }, room);
+    removeUserFromRoom(user, room);
 
     // Send message to FE that user has left
-    socket.broadcast
-      .to(room)
-      .emit("user-disconnect", { user: name, id: socket.id });
+    socket.broadcast.to(room.id).emit("user-disconnect", user);
 
     // Send updated roomData to connected users
     updateClientRoomData(room);
     //
     const topRooms = getMostPopulousRooms(8);
     socket.broadcast.emit("top8Rooms", topRooms);
-  });
-
-  socket.on("requestTop8Rooms", () => {
-    const topRooms = getMostPopulousRooms(8);
-    socket.emit("top8Rooms", topRooms);
   });
 
   // handles creation of new rooms by users
@@ -394,6 +330,7 @@ io.on("connect", (socket) => {
     });
   });
 
+  // should add a friend from their data without harming it.
   socket.on("add-friend", async ({ uid, friendUID }) => {
     // addNewSavedRoom(userUID, roomUID)
     const userRef = usersRef.doc(uid);
@@ -427,6 +364,37 @@ io.on("connect", (socket) => {
       friends: admin.firestore.FieldValue.arrayRemove({
         uid: uid,
       }),
+    });
+  });
+
+  socket.on("requestTop8Rooms", () => {
+    const topRooms = getMostPopulousRooms(8);
+    socket.emit("top8Rooms", topRooms);
+  });
+
+  socket.on("requestUserRooms", async (uid) => {
+    const userRef = usersRef.doc(uid);
+    const userDoc = await userRef.get();
+    console.log("UID: " + uid);
+    if (userDoc.exists) {
+      console.log(
+        util.inspect(userDoc.data().friends, { showHidden: false, depth: null })
+      );
+      socket.emit("userRooms", userDoc.data().rooms);
+    }
+  });
+
+  // should fetch user's data without harming it.
+  socket.on("requestUserFriends", async (uid) => {
+    const userRef = usersRef.doc(uid);
+    console.log(uid);
+    await userRef.get().then((data) => {
+      if (data.exists) {
+        console.log(
+          util.inspect(data.data(), { showHidden: false, depth: null })
+        );
+        socket.emit("userFriends", data().friends);
+      }
     });
   });
 
