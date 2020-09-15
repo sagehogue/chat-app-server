@@ -1,3 +1,5 @@
+const util = require("util");
+
 // TODOS:
 // ***MOST IMPORTANT*** Replace all references to rooms by names with references by ID!!!
 // Implement better user tracking - need to be able to list all users present in each room.
@@ -11,7 +13,14 @@ const rooms = [];
 
 // room expected to look like {roomID: id, roomName: name}
 const addRoom = (room, user = false) => {
+  console.log("ADDROOM ROOM & USER " + util.inspect(room, user));
   const { roomName, id } = room;
+  console.log(
+    `\n*****\n*****\n${util.inspect(room, {
+      showHidden: false,
+      depth: null,
+    })}\n********\n******`
+  );
   const existingRoom = rooms.find((onlineRoom) => onlineRoom.id === id);
   if (existingRoom) {
     return "Error! Room already online!\n" + existingRoom;
@@ -30,10 +39,9 @@ const addRoom = (room, user = false) => {
 // Adds user to room and increments online user count
 // room expected to look like {roomID: id, roomName: name}
 const addUserToRoom = (user, room) => {
-  const { id } = room;
-  console.log("Room ID in addUserToRoom: " + id);
+  console.log("Room OBJ in addUserToRoom: " + util.inspect(room));
   // searches for room
-  const roomToAddUserTo = rooms.find((onlineRoom) => onlineRoom.id === id);
+  const roomToAddUserTo = rooms.find((onlineRoom) => onlineRoom.id === room.id);
   if (roomToAddUserTo) {
     // add it to the array of online users in given room
     roomToAddUserTo.users.push(user);
@@ -50,7 +58,6 @@ const addUserToRoom = (user, room) => {
 // takes a roomID, returns information about it
 const getRoomInfo = (roomID) => {
   const data = rooms.filter((activeRoom) => activeRoom.id === roomID);
-  console.log(rooms);
   console.log(`Room Data: ${data[0]}`);
   return data[0];
 };
@@ -65,7 +72,9 @@ const getMostPopulousRooms = (quantity) => {
 };
 
 //  remove user from room and decrements online user count. Removes room if no users are active.
-const removeUserFromRoom = (user, roomID) => {
+const removeUserFromRoom = (user, room) => {
+  const { roomName, id } = room;
+  const roomID = id;
   // finds room
   const roomToRemoveUserFrom = rooms.find(
     (onlineRoom) => onlineRoom.id === roomID

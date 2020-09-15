@@ -22,6 +22,7 @@ const { getCurrentTime } = require("./util");
 
 const router = require("./router");
 const serviceAccount = require("./API_KEY.json"); // firebase API key
+const { Console } = require("console");
 
 // TODOS:
 // 1) Delete dead code
@@ -65,7 +66,6 @@ const getMessageHistory = async (roomID) => {
   if (room.exists) {
     return await room.data().messageHistory;
   } else {
-    console.log("Room not found.");
     return "Room not found.";
   }
 };
@@ -82,9 +82,9 @@ const addMessageToRoom = async (message, roomID) => {
     });
   } else {
     // doc.data() will be undefined in this case
-    console.log(
-      `Looked up ${roomName} in database, room.exists reads ${room.exists}`
-    );
+    // console.log(
+    //   `Looked up ${roomName} in database, room.exists reads ${room.exists}`
+    // );
     const data = {
       messageHistory: [message],
     };
@@ -93,17 +93,20 @@ const addMessageToRoom = async (message, roomID) => {
 };
 
 const updateClientRoomData = async (room) => {
+  console.log("ROOMDATA REQUESTED FOR:" + util.inspect(room));
   // const promise = new Promise((resolve, reject) => {
   //   resolve(getRoomInfo(room.id));
   // })
   // .then((roomInfo) => {
-  console.log(getRoomInfo(room.id));
+  console.log(`ROOMDATA FOR: ${util.inspect(getRoomInfo(room.id))}`);
   const roomInfo = getRoomInfo(room.id);
-  io.to(room.id).emit("roomData", {
-    room: roomInfo.roomName,
-    users: roomInfo.users,
-    onlineUserCount: roomInfo.online,
-  });
+  if (roomInfo) {
+    io.to(room.id).emit("roomData", {
+      room: roomInfo.roomName,
+      users: roomInfo.users,
+      onlineUserCount: roomInfo.online,
+    });
+  }
   // })
   // .catch((err) => {
   //   // ...error handling
@@ -129,12 +132,16 @@ io.on("connect", (socket) => {
     console.log(`error: ${error}`);
   }
 
-  // a "join" event is expected to be accompanied by some data. a room to be joined and the username of the user joining
-  socket.on("join", ({ user, room }, callback) => {
+  // a "join" event expects {room: {id: ###, name: ""},user: {name: "", id: ###}}
+  socket.on("join", ({ user, room }) => {
     // Connect user
     socket.join(room.id);
 
-    user.room = room.name;
+    console.log("***JOIN***");
+    console.log(`User: ${util.inspect(user)}
+  room: ${util.inspect(room)}`);
+    console.log();
+    user.room = room.roomName;
 
     // Update room model to reflect new user's presence
     addUserToRoom(user, room);
@@ -145,7 +152,7 @@ io.on("connect", (socket) => {
     // Send welcome message to user
     socket.emit("message", {
       user: "admin",
-      text: `${user.name}, welcome to room ${room.roomName}.`,
+      text: `${user.displayName}, welcome to room ${room.roomName}.`,
       time: getCurrentTime(),
     });
 
@@ -174,12 +181,14 @@ io.on("connect", (socket) => {
   // email, password expected
   socket.on("register-user", ({ email, displayName, uid }) => {
     // CREATE FIRESTORE USER DOC WITH INFORMATION, UID. WE WILL USE THIS TO TIE AUTH TO FRIENDS/ROOMS/OTHER USER INFO
+    console.log("CREATING USER ACCOUNT");
     const userRef = usersRef.doc(uid);
     userRef.get().then((data) => {
       if (data.exists) {
         console.log("Error: User already exists.");
         return "Error: User already exists.";
       } else {
+        console.log("CREATING USER ACCOUNT ON FIREBASE");
         const res = userRef
           .set({
             email,
@@ -231,22 +240,29 @@ io.on("connect", (socket) => {
 
   socket.on(
     "sendMessage",
-    ({ content: { text, user, time, room } }, callback) => {
+    ({ content: { text, user, time, room, uid } }, callback) => {
+      console.log(
+        `SENDMESSAGE CONTENT: ${util.inspect({ text, user, time, room, uid })}`
+      );
+
       // socket id of message author
-      const sender = getUser(socket.id);
+      const sender = getUser(uid);
 
       // actual message
-      const message = { user, text, time, room };
+      const message = { user, text, time, room, uid };
 
       // console.logs to view message for lazy debugging purposes
       console.log(
         "sendMessage event detected! content:\n" +
           util.inspect(message, { showHidden: false, depth: null })
       );
-      console.log(util.inspect(sender, { showHidden: false, depth: null }));
+      console.log(
+        "Message Author: " +
+          util.inspect(sender, { showHidden: false, depth: null })
+      );
 
       // actual sending of message to other clients
-      socket.broadcast.to(sender.room).emit("message", message);
+      socket.broadcast.to(room).emit("message", message);
 
       // update messageHistory in database with new message
       addMessageToRoom(message, room);
@@ -261,7 +277,7 @@ io.on("connect", (socket) => {
     socket.leave(room.id);
 
     // updates user location in internal model.
-    changeUserLocation(room.id, false);
+    changeUserLocation(user.id, false);
 
     // Update count of online users in given room.
     removeUserFromRoom(user, room);
