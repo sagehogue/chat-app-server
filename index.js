@@ -93,7 +93,6 @@ const addMessageToRoom = async (message, roomID) => {
 };
 
 const updateClientRoomData = async (room) => {
-  console.log("ROOMDATA REQUESTED FOR:" + util.inspect(room));
   // const promise = new Promise((resolve, reject) => {
   //   resolve(getRoomInfo(room.id));
   // })
@@ -127,8 +126,7 @@ io.on("connect", (socket) => {
   });
 
   // some lazy error handling - should be improved upon
-  if (error || user) {
-    console.log(`user: ${user}`);
+  if (error) {
     console.log(`error: ${error}`);
   }
 
@@ -136,11 +134,6 @@ io.on("connect", (socket) => {
   socket.on("join", ({ user, room }) => {
     // Connect user
     socket.join(room.id);
-
-    console.log("***JOIN***");
-    console.log(`User: ${util.inspect(user)}
-  room: ${util.inspect(room)}`);
-    console.log();
     user.room = room.roomName;
 
     // Update room model to reflect new user's presence
@@ -251,16 +244,6 @@ io.on("connect", (socket) => {
       // actual message
       const message = { user, text, time, room, uid };
 
-      // console.logs to view message for lazy debugging purposes
-      console.log(
-        "sendMessage event detected! content:\n" +
-          util.inspect(message, { showHidden: false, depth: null })
-      );
-      console.log(
-        "Message Author: " +
-          util.inspect(sender, { showHidden: false, depth: null })
-      );
-
       // actual sending of message to other clients
       socket.broadcast.to(room).emit("message", message);
 
@@ -346,10 +329,10 @@ io.on("connect", (socket) => {
     });
   });
 
-  // should add a friend from their data without harming it.
+  // pending friends and ones you accept, sentrequests are those other user accepts.
   socket.on("add-friend", async ({ uid, friendUID }) => {
     // addNewSavedRoom(userUID, roomUID)
-    const newFriendRequest = {
+    const newSentFriendRequest = {
       uid: friendUID,
       isFriend: "sent",
     };
@@ -364,9 +347,9 @@ io.on("connect", (socket) => {
     if (userDoc.exists && friendDoc.exists) {
       const userData = userDoc.data();
       const friendData = friendDoc.data();
-      newFriendRequest.displayName = friendData.displayName;
+      newSentFriendRequest.displayName = friendData.displayName;
       const addFriendRes = await userRef.update({
-        friends: admin.firestore.FieldValue.arrayUnion(newFriendRequest),
+        friends: admin.firestore.FieldValue.arrayUnion(newSentFriendRequest),
       });
       newPendingFriend.displayName = userData.displayName;
       const friendReceiveRequestRes = await friendRef.update({
@@ -399,25 +382,25 @@ io.on("connect", (socket) => {
   socket.on("requestUserRooms", async (uid) => {
     const userRef = usersRef.doc(uid);
     const userDoc = await userRef.get();
-    console.log("UID: " + uid);
     if (userDoc.exists) {
-      console.log(
-        util.inspect(userDoc.data().friends, { showHidden: false, depth: null })
-      );
       socket.emit("userRooms", userDoc.data().rooms);
     }
   });
 
   // should fetch user's data without harming it.
-  socket.on("fetch-friends", async (uid) => {
+  socket.on("fetch-friends", async ({ uid }) => {
+    console.log(`UID for friend fetching ` + uid);
     const userRef = usersRef.doc(uid);
-    console.log(uid);
     await userRef.get().then((data) => {
       if (data.exists) {
         console.log(
-          util.inspect(data.data(), { showHidden: false, depth: null })
+          `FRIEND DATA FOR YA` +
+            util.inspect(data.data().friends, {
+              showHidden: false,
+              depth: null,
+            })
         );
-        socket.emit("userFriends", data().friends);
+        socket.emit("userFriends", data.data().friends);
       }
     });
   });
