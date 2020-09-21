@@ -349,22 +349,30 @@ io.on("connect", (socket) => {
   // should add a friend from their data without harming it.
   socket.on("add-friend", async ({ uid, friendUID }) => {
     // addNewSavedRoom(userUID, roomUID)
+    const newFriendRequest = {
+      uid: friendUID,
+      isFriend: "sent",
+    };
+    const newPendingFriend = {
+      uid: uid,
+      isFriend: "pending",
+    };
     const userRef = usersRef.doc(uid);
+    const userDoc = await userRef.get();
     const friendRef = usersRef.doc(friendUID);
-    const addFriendRes = await userRef.update({
-      friends: admin.firestore.FieldValue.arrayUnion({
-        uid: friendUID,
-        displayName: friendRef.displayName,
-        isFriend: "sent",
-      }),
-    });
-    const friendReceiveRequestRes = await friendRef.update({
-      friends: admin.firestore.FieldValue.arrayUnion({
-        uid: uid,
-        displayName: userRef.displayName,
-        isFriend: "pending",
-      }),
-    });
+    const friendDoc = await friendRef.get();
+    if (userDoc.exists && friendDoc.exists) {
+      const userData = userDoc.data();
+      const friendData = friendDoc.data();
+      newFriendRequest.displayName = friendData.displayName;
+      const addFriendRes = await userRef.update({
+        friends: admin.firestore.FieldValue.arrayUnion(newFriendRequest),
+      });
+      newPendingFriend.displayName = userData.displayName;
+      const friendReceiveRequestRes = await friendRef.update({
+        friends: admin.firestore.FieldValue.arrayUnion(newPendingFriend),
+      });
+    }
   });
 
   socket.on("remove-friend", async ({ uid, friendUID }) => {
@@ -401,7 +409,7 @@ io.on("connect", (socket) => {
   });
 
   // should fetch user's data without harming it.
-  socket.on("requestUserFriends", async (uid) => {
+  socket.on("fetch-friends", async (uid) => {
     const userRef = usersRef.doc(uid);
     console.log(uid);
     await userRef.get().then((data) => {
