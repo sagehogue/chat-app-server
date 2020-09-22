@@ -355,6 +355,82 @@ io.on("connect", (socket) => {
       const friendReceiveRequestRes = await friendRef.update({
         friends: admin.firestore.FieldValue.arrayUnion(newPendingFriend),
       });
+    } else {
+      // handle no user/friend error
+    }
+  });
+
+  socket.on("accept-friend-request", async ({ id, requestAuthorID }) => {
+    const newUserFriendObj = { id: requestAuthorID, isFriend: true };
+    const newAuthorFriendObj = { id, isFriend: true };
+    const userRef = usersRef.doc(uid);
+    const userDoc = await userRef.get();
+    const friendRef = usersRef.doc(requestAuthorID);
+    const friendDoc = await friendRef.get();
+
+    // if both users have data
+    if (userDoc.exists && friendDoc.exists) {
+      const userData = userDoc.data();
+      const authorData = friendDoc.data();
+
+      // create new friend array, removing old friend request in process
+      const newUserFriendArray = userData.friends.filter(
+        (friend) => friend.id !== requestAuthorID
+      );
+      newUserFriendObj.displayName = friendData.displayName;
+
+      // add new friend object
+      newUserFriendArray.push(newUserFriendObj);
+
+      // update user data
+      const addFriendRes = await userRef.update({
+        friends: newUserFriendArray,
+      });
+
+      // now repeat for the sender of the friend request
+      const newAuthorFriendArray = authorData.friends.filter(
+        (friend) => friend.id !== id
+      );
+      newAuthorFriendObj.displayName = userData.displayName;
+      newAuthorFriendArray.push(newUserFriendObj);
+      const addAuthorFriendRes = await authorRef.update({
+        friends: newAuthorFriendArray,
+      });
+    } else {
+      // handle no user/friend error
+    }
+  });
+
+  socket.on("decline-friend-request", async ({ id, requestAuthorID }) => {
+    const userRef = usersRef.doc(uid);
+    const userDoc = await userRef.get();
+    const friendRef = usersRef.doc(requestAuthorID);
+    const friendDoc = await friendRef.get();
+
+    // if both users have data
+    if (userDoc.exists && friendDoc.exists) {
+      const userData = userDoc.data();
+      const authorData = friendDoc.data();
+
+      // create new friend array, removing old friend request in process
+      const newUserFriendArray = userData.friends.filter(
+        (friend) => friend.id !== requestAuthorID
+      );
+
+      // update user data
+      const addFriendRes = await userRef.update({
+        friends: newUserFriendArray,
+      });
+
+      // now repeat for the sender of the friend request
+      const newAuthorFriendArray = authorData.friends.filter(
+        (friend) => friend.id !== id
+      );
+      const addAuthorFriendRes = await authorRef.update({
+        friends: newAuthorFriendArray,
+      });
+    } else {
+      // handle no user/friend error
     }
   });
 
