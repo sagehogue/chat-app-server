@@ -361,31 +361,35 @@ io.on("connect", (socket) => {
   });
 
   socket.on("accept-friend-request", async ({ id, requestAuthorID }) => {
+    console.log(`USER ID:${id}\nFRIEND REQUEST AUTHOR ID:${requestAuthorID}`);
     const newUserFriendObj = { id: requestAuthorID, isFriend: true };
     const newAuthorFriendObj = { id, isFriend: true };
-    const userRef = usersRef.doc(uid);
+    const userRef = usersRef.doc(id);
     const userDoc = await userRef.get();
-    const friendRef = usersRef.doc(requestAuthorID);
-    const friendDoc = await friendRef.get();
+    const requestAuthorRef = usersRef.doc(requestAuthorID);
+    const requestAuthorDoc = await requestAuthorRef.get();
 
     // if both users have data
-    if (userDoc.exists && friendDoc.exists) {
+    if (userDoc.exists && requestAuthorDoc.exists) {
       const userData = userDoc.data();
-      const authorData = friendDoc.data();
+      const authorData = requestAuthorDoc.data();
 
       // create new friend array, removing old friend request in process
       const newUserFriendArray = userData.friends.filter(
-        (friend) => friend.id !== requestAuthorID
+        (friend) => friend.uid !== requestAuthorID
       );
-      newUserFriendObj.displayName = friendData.displayName;
+      newUserFriendObj.displayName = authorData.displayName;
 
       // add new friend object
       newUserFriendArray.push(newUserFriendObj);
 
       // update user data
-      const addFriendRes = await userRef.update({
-        friends: newUserFriendArray,
-      });
+      const addFriendRes = await userRef.set(
+        {
+          friends: newUserFriendArray,
+        },
+        { merge: true }
+      );
 
       // now repeat for the sender of the friend request
       const newAuthorFriendArray = authorData.friends.filter(
@@ -393,9 +397,12 @@ io.on("connect", (socket) => {
       );
       newAuthorFriendObj.displayName = userData.displayName;
       newAuthorFriendArray.push(newUserFriendObj);
-      const addAuthorFriendRes = await authorRef.update({
-        friends: newAuthorFriendArray,
-      });
+      const addAuthorFriendRes = await requestAuthorRef.set(
+        {
+          friends: newAuthorFriendArray,
+        },
+        { merge: true }
+      );
     } else {
       // handle no user/friend error
     }
@@ -435,19 +442,45 @@ io.on("connect", (socket) => {
   });
 
   socket.on("remove-friend", async ({ uid, friendUID }) => {
-    // addNewSavedRoom(userUID, roomUID)
+    console.log(`REMOVING USER\n UID: ${uid}\nFRIEND UID: ${friendUID}`);
     const userRef = usersRef.doc(uid);
+    const userDoc = await userRef.get();
     const friendRef = usersRef.doc(friendUID);
-    const removeFriendRes = await userRef.update({
-      friends: admin.firestore.FieldValue.arrayRemove({
-        uid: friendUID,
-      }),
-    });
-    const removeUserFromFriendRes = await friendRef.update({
-      friends: admin.firestore.FieldValue.arrayRemove({
-        uid: uid,
-      }),
-    });
+    const friendDoc = await friendRef.get();
+
+    if (userDoc.exists && friendDoc.exists) {
+      const arrayRemove = admin.firestore.FieldValue.arrayRemove;
+      const userData = userDoc.data();
+      const friendData = friendDoc.data();
+      // get index of friend to remove from user
+      const indexForUser = userData.friends.findIndex(
+        (friend) => friend.id == friendUID
+      );
+
+      // deletion
+      userRef.update({ friends: arrayRemove(userData.friends[indexForUser]) });
+
+      // get index of user to remove from friend
+      const indexForFriend = friendData.friends.findIndex(
+        (friend) => friend.id == uid
+      );
+      // deletion
+      friendRef.update({
+        friends: arrayRemove(friendData.friends[indexForFriend]),
+      });
+      // const removeFriendRes = await userRef.update({
+      //   friends: admin.firestore.FieldValue.arrayRemove({
+      //     id: friendUID,
+      //   }),
+      // });
+      // const removeUserFromFriendRes = await friendRef.update({
+      //   friends: admin.firestore.FieldValue.arrayRemove({
+      //     id: uid,
+      //   }),
+      // });
+    } else {
+      // handle bad request
+    }
   });
 
   socket.on("requestTop8Rooms", () => {
