@@ -285,7 +285,7 @@ io.on("connect", (socket) => {
           creator: creator,
           passwordProtected: passwordProtected,
           password: password,
-          members: [{ displayName: creator, uid: creatorUID, role: "creator" }],
+          members: [{ displayName: creator, id: creatorUID, role: "creator" }],
         })
         .then(async (res) => {
           const userRef = usersRef.doc(creatorUID);
@@ -333,11 +333,11 @@ io.on("connect", (socket) => {
   socket.on("add-friend", async ({ uid, friendUID }) => {
     // addNewSavedRoom(userUID, roomUID)
     const newSentFriendRequest = {
-      uid: friendUID,
+      id: friendUID,
       isFriend: "sent",
     };
     const newPendingFriend = {
-      uid: uid,
+      id: uid,
       isFriend: "pending",
     };
     const userRef = usersRef.doc(uid);
@@ -409,9 +409,12 @@ io.on("connect", (socket) => {
   });
 
   socket.on("decline-friend-request", async ({ id, requestAuthorID }) => {
+<<<<<<< HEAD
     console.log(
       `EVENT: decline-friend-request \nID: ${id}\nREQUEST AUTHOR ID: ${requestAuthorID}`
     );
+=======
+>>>>>>> 301162b0c548900957997400729aa2d69d78940a
     const userRef = usersRef.doc(id);
     const userDoc = await userRef.get();
     const authorRef = usersRef.doc(requestAuthorID);
@@ -489,13 +492,35 @@ io.on("connect", (socket) => {
     }
   });
 
+  socket.on("cancel-friend-request", ({ authorID, recipientID }) => {
+    db.runTransaction(function (transaction) {
+      return transaction.get(
+        usersRef(authorID).then((userDoc) => {
+          if (!userDoc.exists) {
+            throw "Document does not exist!";
+          }
+          const userData = userDoc.data();
+          // Get array of user friends
+          const userFriends = userData.friends;
+          // Filter out canceled friend request
+          const newFriendsArray = userFriends.filter(
+            (friend) => friend.id !== recipientID
+          );
+          // update friends with new array
+          transaction.update(usersRef(authorID), { friends: newFriendsArray });
+          // then repeat for recipient, filtering out request
+        })
+      );
+    });
+  });
+
   socket.on("requestTop8Rooms", () => {
     const topRooms = getMostPopulousRooms(8);
     socket.emit("top8Rooms", topRooms);
   });
 
-  socket.on("requestUserRooms", async (uid) => {
-    const userRef = usersRef.doc(uid);
+  socket.on("requestUserRooms", async (id) => {
+    const userRef = usersRef.doc(id);
     const userDoc = await userRef.get();
     if (userDoc.exists) {
       socket.emit("userRooms", userDoc.data().rooms);
