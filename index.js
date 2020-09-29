@@ -409,15 +409,18 @@ io.on("connect", (socket) => {
   });
 
   socket.on("decline-friend-request", async ({ id, requestAuthorID }) => {
-    const userRef = usersRef.doc(uid);
+    console.log(
+      `EVENT: decline-friend-request \nID: ${id}\nREQUEST AUTHOR ID: ${requestAuthorID}`
+    );
+    const userRef = usersRef.doc(id);
     const userDoc = await userRef.get();
-    const friendRef = usersRef.doc(requestAuthorID);
-    const friendDoc = await friendRef.get();
+    const authorRef = usersRef.doc(requestAuthorID);
+    const authorDoc = await authorRef.get();
 
     // if both users have data
-    if (userDoc.exists && friendDoc.exists) {
+    if (userDoc.exists && authorDoc.exists) {
       const userData = userDoc.data();
-      const authorData = friendDoc.data();
+      const authorData = authorDoc.data();
 
       // create new friend array, removing old friend request in process
       const newUserFriendArray = userData.friends.filter(
@@ -438,6 +441,9 @@ io.on("connect", (socket) => {
       });
     } else {
       // handle no user/friend error
+      console.log(
+        "ERROR: user ids provided do not correspond to user accounts (decline-friend-request)"
+      );
     }
   });
 
