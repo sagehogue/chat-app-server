@@ -9,6 +9,9 @@ const util = require("util");
 
 // array of active rooms
 // room obj looks like { roomName: room, online: count }
+
+//Also, add a way to delete rooms /and alter their privacy status (add passsword protection after creating the room)
+
 const rooms = [];
 
 // room expected to look like {roomID: id, roomName: name}
