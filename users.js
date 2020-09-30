@@ -9,27 +9,25 @@ const util = require("util");
 const users = [];
 
 // Method to add a new user to the array of online users
-const addUser = ({ id, name, room = false }) => {
-  // ID is unique and is compared against to find the user.
-  // name is display name, room is the room they are currently in.
-  name = name.trim().toLowerCase();
-  if (room) {
-    room = room.trim().toLowerCase();
-  }
-
+// name is display name, room is the room they are currently in.
+const addUser = ({ id, socket, name, room = false }) => {
   // searches for existing
-  const existingUser = users.find(
-    (user) => user.room === room && user.name === name
-  );
+  existingUser = false;
+  existingUser = users.find((user) => user.id === id);
 
-  // new user object created from our arguments
-  const user = { id, name, room };
+  if (existingUser) {
+    existingUser.socket = socket;
+    return existingUser;
+  } else {
+    // new user object created from our arguments
+    const user = { id, name, room, socket };
 
-  // add it to the array of online users
-  users.push(user);
+    // add it to the array of online users
+    users.push(user);
 
-  // return user object if it was successfully addded to the list.
-  return { user };
+    // return user object if it was successfully addded to the list.
+    return user;
+  }
 };
 
 const changeUserLocation = ({ id, newRoom }) => {

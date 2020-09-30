@@ -121,10 +121,10 @@ io.on("connect", (socket) => {
   const displayName = socket.handshake.query.displayName;
 
   // Add user to user list
-  const { error, user } = addUser({
-    id: socket.id,
-    name: displayName,
-  });
+  // const { error, user } = addUser({
+  //   id: socket.id,
+  //   name: displayName,
+  // });
 
   // some lazy error handling - should be improved upon
   if (error) {
@@ -133,15 +133,22 @@ io.on("connect", (socket) => {
 
   // a "join" event expects {room: {id: ###, name: ""},user: {name: "", id: ###}}
   socket.on("join", ({ user, room }) => {
+    // Add user to user list
+    addUser({
+      id: user.id,
+      room: room.id,
+      socket: socket.id,
+      name: user.displayName,
+    });
     // Connect user
     socket.join(room.id);
-    user.room = room.roomName;
+    // user.room = room.roomName;
 
     // Update room model to reflect new user's presence
     addUserToRoom(user, room);
 
     // Update user's location in userlist
-    changeUserLocation({ id: user.id, newRoom: room.id });
+    // changeUserLocation({ id: user.id, newRoom: room.id });
 
     // Send welcome message to user
     socket.emit("message", {
@@ -375,6 +382,11 @@ io.on("connect", (socket) => {
           }
         });
         if (nonDuplicateFriend) {
+          let recipientUser;
+          recipientUser = getUser(friendUID);
+          if (recipientUser) {
+            socket.emit("new-friend-request", newPendingFriend);
+          }
           const newAuthorFriendArray = [...authorFriends, newSentFriendRequest];
           const newRecipientFriendArray = [...authorFriends, newPendingFriend];
           transaction.update(userRef, { friends: newAuthorFriendArray });
