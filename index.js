@@ -329,122 +329,149 @@ io.on("connect", (socket) => {
     });
   });
 
-  // pending friends and ones you accept, sentrequests are those other user accepts.
+  // pending friends are ones you accept, sentrequests are those other user accepts.
+  // this function sends a friend request
   socket.on("add-friend", async ({ uid, friendUID }) => {
-    // addNewSavedRoom(userUID, roomUID)
+    console.log(`ADD-FRIEND\nID: ${uid} \nFRIEND: ${friendUID}`);
+    const userRef = usersRef.doc(uid);
+    const friendRef = usersRef.doc(friendUID);
+    // for user
     const newSentFriendRequest = {
       id: friendUID,
       isFriend: "sent",
     };
+    // for friend
     const newPendingFriend = {
       id: uid,
       isFriend: "pending",
     };
-    const userRef = usersRef.doc(uid);
-    const userDoc = await userRef.get();
-    const friendRef = usersRef.doc(friendUID);
-    const friendDoc = await friendRef.get();
-    if (userDoc.exists && friendDoc.exists) {
-      const userData = userDoc.data();
-      const friendData = friendDoc.data();
-      newSentFriendRequest.displayName = friendData.displayName;
-      const addFriendRes = await userRef.update({
-        friends: admin.firestore.FieldValue.arrayUnion(newSentFriendRequest),
+    db.runTransaction(function (transaction) {
+      return transaction.getAll(userRef, friendRef).then((docs) => {
+        const authorDoc = docs[0];
+        const recipientDoc = docs[1];
+
+        if (!authorDoc.exists || !recipientDoc.exists) {
+          throw "Document does not exist!";
+        }
+        const authorData = authorDoc.data();
+        const recipientData = recipientDoc.data();
+        // Get array of request author & recipient friend lists
+        const authorFriends = authorData.friends;
+        const recipientFriends = recipientData.friends;
+        // Put displayNames on the new friend objects.
+        newPendingFriend.displayName = authorData.displayName;
+        newSentFriendRequest.displayName = recipientData.displayName;
+        // if friends lists do not contain any other friend objects for the newly provided UIDs, add the objects to the arrays.
+        let nonDuplicateFriend = true;
+        authorFriends.map((friend) => {
+          if (friend.id === friendUID) {
+            nonDuplicateFriend = false;
+          }
+        });
+        recipientFriends.map((friend) => {
+          if (friend.id === uid) {
+            nonDuplicateFriend = false;
+          }
+        });
+        if (nonDuplicateFriend) {
+          const newAuthorFriendArray = [...authorFriends, newSentFriendRequest];
+          const newRecipientFriendArray = [...authorFriends, newPendingFriend];
+          transaction.update(userRef, { friends: newAuthorFriendArray });
+          transaction.update(friendRef, { friends: newRecipientFriendArray });
+        } else {
+          throw "Error! Duplicate friend request";
+        }
       });
-      newPendingFriend.displayName = userData.displayName;
-      const friendReceiveRequestRes = await friendRef.update({
-        friends: admin.firestore.FieldValue.arrayUnion(newPendingFriend),
-      });
-    } else {
-      // handle no user/friend error
-    }
+    });
   });
 
   socket.on("accept-friend-request", async ({ id, requestAuthorID }) => {
-    console.log(`USER ID:${id}\nFRIEND REQUEST AUTHOR ID:${requestAuthorID}`);
-    const newUserFriendObj = { id: requestAuthorID, isFriend: true };
-    const newAuthorFriendObj = { id, isFriend: true };
-    const userRef = usersRef.doc(id);
-    const userDoc = await userRef.get();
-    const requestAuthorRef = usersRef.doc(requestAuthorID);
-    const requestAuthorDoc = await requestAuthorRef.get();
-
-    // if both users have data
-    if (userDoc.exists && requestAuthorDoc.exists) {
-      const userData = userDoc.data();
-      const authorData = requestAuthorDoc.data();
-
-      // create new friend array, removing old friend request in process
-      const newUserFriendArray = userData.friends.filter(
-        (friend) => friend.uid !== requestAuthorID
-      );
-      newUserFriendObj.displayName = authorData.displayName;
-
-      // add new friend object
-      newUserFriendArray.push(newUserFriendObj);
-
-      // update user data
-      const addFriendRes = await userRef.set(
-        {
-          friends: newUserFriendArray,
-        },
-        { merge: true }
-      );
-
-      // now repeat for the sender of the friend request
-      const newAuthorFriendArray = authorData.friends.filter(
-        (friend) => friend.id !== id
-      );
-      newAuthorFriendObj.displayName = userData.displayName;
-      newAuthorFriendArray.push(newUserFriendObj);
-      const addAuthorFriendRes = await requestAuthorRef.set(
-        {
-          friends: newAuthorFriendArray,
-        },
-        { merge: true }
-      );
-    } else {
-      // handle no user/friend error
-    }
+    // Renaming some destructured object properties for improved legibility
+    const recipientID = id;
+    const authorID = requestAuthorID;
+    const authorRef = usersRef.doc(authorID);
+    const recipientRef = usersRef.doc(recipientID);
+    // Initialize new transaction
+    db.runTransaction(function (transaction) {
+      return transaction.getAll(authorRef, recipientRef).then((docs) => {
+        const authorDoc = docs[0];
+        const recipientDoc = docs[1];
+        if (!authorDoc.exists || !recipientDoc.exists) {
+          throw "Document does not exist!";
+        }
+        const authorData = authorDoc.data();
+        const recipientData = recipientDoc.data();
+        // Get array of request author & recipient friend lists
+        const authorFriends = authorData.friends;
+        const recipientFriends = recipientData.friends;
+        // Filter out accepted friend request
+        const newAuthorFriendsArray = authorFriends.map((friend) => {
+          if (friend.id == recipientID) {
+            return {
+              displayName: friend.displayName,
+              id: friend.id,
+              isFriend: true,
+            };
+          } else {
+            return friend;
+          }
+        });
+        // create new array, replacing pending request with friend object.
+        const newRecipientFriendsArray = recipientFriends.map((friend) => {
+          if (friend.id == authorID) {
+            return {
+              displayName: friend.displayName,
+              id: friend.id,
+              isFriend: true,
+            };
+          } else {
+            return friend;
+          }
+        });
+        // update friends with new array
+        transaction.update(authorRef, { friends: newAuthorFriendsArray });
+        // update friends with new array
+        transaction.update(recipientRef, { friends: newRecipientFriendsArray });
+      });
+    });
   });
 
   socket.on("decline-friend-request", async ({ id, requestAuthorID }) => {
-    console.log(
-      `EVENT: decline-friend-request \nID: ${id}\nREQUEST AUTHOR ID: ${requestAuthorID}`
-    );
-    const userRef = usersRef.doc(id);
-    const userDoc = await userRef.get();
-    const authorRef = usersRef.doc(requestAuthorID);
-    const authorDoc = await authorRef.get();
+    console.log(`DECLINE FRIEND REQUEST
+    \nID: ${id}\n
+    AUTHOR ID: ${requestAuthorID}`);
+    const recipientID = id;
+    const authorID = requestAuthorID;
+    const authorRef = usersRef.doc(authorID);
+    const recipientRef = usersRef.doc(recipientID);
 
-    // if both users have data
-    if (userDoc.exists && authorDoc.exists) {
-      const userData = userDoc.data();
-      const authorData = authorDoc.data();
+    db.runTransaction(function (transaction) {
+      return transaction.getAll(authorRef, recipientRef).then((docs) => {
+        const authorDoc = docs[0];
+        const recipientDoc = docs[1];
+        if (!authorDoc.exists || !recipientDoc.exists) {
+          throw "Document does not exist!";
+        }
+        const authorData = authorDoc.data(); // Get array of request author & recipient friend lists
+        const recipientData = recipientDoc.data();
 
-      // create new friend array, removing old friend request in process
-      const newUserFriendArray = userData.friends.filter(
-        (friend) => friend.id !== requestAuthorID
-      );
+        const authorFriends = authorData.friends;
+        const recipientFriends = recipientData.friends;
 
-      // update user data
-      const addFriendRes = await userRef.update({
-        friends: newUserFriendArray,
+        // Filter out declined friend request
+        const newAuthorFriendsArray = authorFriends.filter(
+          (friend) => friend.id !== recipientID
+        );
+        // create new array, replacing pending request with friend object.
+        const newRecipientFriendsArray = recipientFriends.filter(
+          (friend) => friend.id !== authorID
+        );
+        // update friends with new array
+        transaction.update(authorRef, { friends: newAuthorFriendsArray });
+        // update friends with new array
+        transaction.update(recipientRef, { friends: newRecipientFriendsArray });
       });
-
-      // now repeat for the sender of the friend request
-      const newAuthorFriendArray = authorData.friends.filter(
-        (friend) => friend.id !== id
-      );
-      const addAuthorFriendRes = await authorRef.update({
-        friends: newAuthorFriendArray,
-      });
-    } else {
-      // handle no user/friend error
-      console.log(
-        "ERROR: user ids provided do not correspond to user accounts (decline-friend-request)"
-      );
-    }
+    });
   });
 
   socket.on("remove-friend", async ({ uid, friendUID }) => {
