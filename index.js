@@ -409,12 +409,9 @@ io.on("connect", (socket) => {
   });
 
   socket.on("decline-friend-request", async ({ id, requestAuthorID }) => {
-<<<<<<< HEAD
     console.log(
       `EVENT: decline-friend-request \nID: ${id}\nREQUEST AUTHOR ID: ${requestAuthorID}`
     );
-=======
->>>>>>> 301162b0c548900957997400729aa2d69d78940a
     const userRef = usersRef.doc(id);
     const userDoc = await userRef.get();
     const authorRef = usersRef.doc(requestAuthorID);
@@ -493,24 +490,34 @@ io.on("connect", (socket) => {
   });
 
   socket.on("cancel-friend-request", ({ authorID, recipientID }) => {
+    const authorRef = usersRef.doc(authorID);
+    const recipientRef = usersRef.doc(recipientID);
     db.runTransaction(function (transaction) {
-      return transaction.get(
-        usersRef(authorID).then((userDoc) => {
-          if (!userDoc.exists) {
-            throw "Document does not exist!";
-          }
-          const userData = userDoc.data();
-          // Get array of user friends
-          const userFriends = userData.friends;
-          // Filter out canceled friend request
-          const newFriendsArray = userFriends.filter(
-            (friend) => friend.id !== recipientID
-          );
-          // update friends with new array
-          transaction.update(usersRef(authorID), { friends: newFriendsArray });
-          // then repeat for recipient, filtering out request
-        })
-      );
+      return transaction.getAll(authorRef, recipientRef).then((docs) => {
+        console.log(util.inspect(docs[0].data()));
+        console.log(util.inspect(docs[1].data()));
+        const userDoc = docs[0];
+        const recipientDoc = docs[1];
+        if (!userDoc.exists || !recipientDoc.exists) {
+          throw "Document does not exist!";
+        }
+        const userData = userDoc.data();
+        const recipientData = recipientDoc.data();
+        // Get array of user friends
+        const userFriends = userData.friends;
+        const recipientFriends = recipientData.friends;
+        // Filter out canceled friend request
+        const newFriendsArray = userFriends.filter(
+          (friend) => friend.id !== recipientID
+        );
+        const newRecipientFriendsArray = recipientFriends.filter(
+          (friend) => friend.id !== authorID
+        );
+        // update friends with new array
+        transaction.update(authorRef, { friends: newFriendsArray });
+        // update friends with new array
+        transaction.update(recipientRef, { friends: newRecipientFriendsArray });
+      });
     });
   });
 
