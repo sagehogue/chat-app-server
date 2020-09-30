@@ -26,11 +26,10 @@ const { Console } = require("console");
 
 // TODOS:
 // 1) Delete dead code
-// 2) Complete online user model - currently nonfunctional/half complete
-
-// List of socket events in use:
-// "connect", "join", "message", "register-user", "login", "room-disconnect",
-// "user-join", "disconnecting"
+// 2) Complete online user model
+// 3) Complete room model
+// 4) Improve documentation
+// 5) Refactor
 
 // Initialization of express app + socket.io
 const app = express();
@@ -81,17 +80,14 @@ const addMessageToRoom = async (message, roomID) => {
       messageHistory: admin.firestore.FieldValue.arrayUnion(message),
     });
   } else {
-    // doc.data() will be undefined in this case
-    // console.log(
-    //   `Looked up ${roomName} in database, room.exists reads ${room.exists}`
-    // );
     const data = {
       messageHistory: [message],
     };
-    roomsRef.doc(roomName).set(data);
+    roomsRef.doc(roomID).set(data);
   }
 };
 
+// CURRENTLY BROKEN
 const updateClientRoomData = async (room) => {
   // const promise = new Promise((resolve, reject) => {
   //   resolve(getRoomInfo(room.id));
@@ -114,7 +110,12 @@ const updateClientRoomData = async (room) => {
 };
 
 // socket.io event listeners
-// they work by listening for the event named by the string argument.
+
+// Events listeners in use:
+// "connect", "register-user", "join", "login", "sendMessage"
+// "room-disconnect", "createNewRoom", "add-user-room", "remove-user-room"
+// "add-friend", "remove-friend", "accept-friend-request", "decline-friend-request",
+// "cancel-friend-request", "requestTop8Rooms", requestUserRooms, "fetch-friends", "disconnecting"
 io.on("connect", (socket) => {
   // gets displayName from socket
   const displayName = socket.handshake.query.displayName;
