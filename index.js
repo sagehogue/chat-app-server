@@ -340,14 +340,17 @@ io.on("connect", (socket) => {
     let userData;
     if (userDoc) {
       userData = userDoc.data();
-      socket.emit("new-avatar", { url: userData.avatar });
+      socket.emit("new-avatar", {
+        url: userData.avatar.url,
+        id: userData.avatar.id,
+      });
     }
   });
 
-  socket.on("change-avatar", async ({ id, url }) => {
+  socket.on("change-avatar", async ({ id, image }) => {
     const userRef = usersRef.doc(id);
-    await userRef.update({ avatar: url }).then((res) => {
-      socket.emit("new-avatar", { url });
+    await userRef.update({ avatar: image }).then((res) => {
+      socket.emit("new-avatar", image);
     });
   });
 
