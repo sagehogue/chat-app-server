@@ -6,7 +6,13 @@ const admin = require("firebase-admin");
 const util = require("util"); // for objects
 
 // Functions for manipulating server model of active users
-const { addUser, removeUser, getUser, changeUserLocation } = require("./users");
+const {
+  addUser,
+  removeUser,
+  getUserFromID,
+  getUserFromSocketID,
+  changeUserLocation,
+} = require("./users");
 
 // Functions for manipulating server model of active rooms
 const {
@@ -118,7 +124,13 @@ const updateClientRoomData = async (room) => {
 // "cancel-friend-request", "requestTop8Rooms", requestUserRooms, "fetch-friends", "disconnecting"
 io.on("connect", (socket) => {
   // gets displayName from socket
-  const displayName = socket.handshake.query.displayName;
+  let displayName, accountID;
+  const sessionID = socket.id;
+  if (socket.handshake.query.id) {
+    displayName = socket.handshake.query.displayName;
+    accountID = socket.handshake.query.id;
+  }
+  console.log("Connection: " + accountID);
 
   // Add user to user list
   // const { error, user } = addUser({
@@ -127,9 +139,9 @@ io.on("connect", (socket) => {
   // });
 
   // some lazy error handling - should be improved upon
-  if (error) {
-    console.log(`error: ${error}`);
-  }
+  // if (error) {
+  //   console.log(`error: ${error}`);
+  // }
 
   // a "join" event expects {room: {id: ###, name: ""},user: {name: "", id: ###}}
   socket.on("join", ({ user, room }) => {
@@ -317,6 +329,27 @@ io.on("connect", (socket) => {
       // });
     }
   );
+
+  socket.on("user-status", (user) => {
+    addUser(user);
+  });
+
+  socket.on("fetch-avatar", async ({ id }) => {
+    const userRef = usersRef.doc(id);
+    const userDoc = await userRef.get();
+    let userData;
+    if (userDoc) {
+      userData = userDoc.data();
+      socket.emit("new-avatar", { url: userData.avatar });
+    }
+  });
+
+  socket.on("change-avatar", async ({ id, url }) => {
+    const userRef = usersRef.doc(id);
+    await userRef.update({ avatar: url }).then((res) => {
+      socket.emit("new-avatar", { url });
+    });
+  });
 
   socket.on("add-user-room", async ({ uid, roomID, favorite = false }) => {
     // addNewSavedRoom(userUID, roomUID)
@@ -593,25 +626,48 @@ io.on("connect", (socket) => {
   });
 
   // Event fires when user disconnects from socket instance.
-  socket.on("disconnecting", () => {
+  // socket.on("disconnecting", () => {
+  //   const rooms = Object.keys(socket.rooms);
+
+  //   // use socket.id to find username
+  //   const username = getUserFromSocketID(socket.id).name;
+
+  //   // Sends user-disconnect events to rooms user was active in.
+  //   rooms.map((room) => {
+  //     socket.broadcast
+  //       .to(room)
+  //       .emit("user-disconnect", { user: username, id: socket.id });
+  //     // SEND UPDATED ROOMDATA TO ROOMS
+  //     // ...
+  //     removeUserFromRoom({ id: socket.id }, room);
+  //   });
+  //   // remove user from online users
+  //   removeUser(socket.id);
+  //   const topRooms = getMostPopulousRooms(8);
+  //   socket.broadcast.emit("top8Rooms", topRooms);
+  // });
+  socket.on("disconnect", () => {
     const rooms = Object.keys(socket.rooms);
 
     // use socket.id to find username
-    const username = getUser(socket.id).name;
+    const disconnectingUser = getUserFromSocketID(socket.id);
+    if (disconnectingUser) {
+      const username = disconnectingUser.name;
 
-    // Sends user-disconnect events to rooms user was active in.
-    rooms.map((room) => {
-      socket.broadcast
-        .to(room)
-        .emit("user-disconnect", { user: username, id: socket.id });
-      // SEND UPDATED ROOMDATA TO ROOMS
-      // ...
-      removeUserFromRoom({ id: socket.id }, room);
-    });
-    // remove user from online users
-    removeUser(socket.id);
-    const topRooms = getMostPopulousRooms(8);
-    socket.broadcast.emit("top8Rooms", topRooms);
+      // Sends user-disconnect events to rooms user was active in.
+      rooms.map((room) => {
+        socket.broadcast
+          .to(room)
+          .emit("user-disconnect", { user: username, id: socket.id });
+        // SEND UPDATED ROOMDATA TO ROOMS
+        // ...
+        removeUserFromRoom(disconnectingUser, room);
+      });
+      // remove user from online users
+      removeUser(disconnectingUser.id);
+      const topRooms = getMostPopulousRooms(8);
+      socket.broadcast.emit("top8Rooms", topRooms);
+    }
   });
 });
 server.listen(process.env.PORT || 5000, () =>

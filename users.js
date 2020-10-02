@@ -46,11 +46,14 @@ const removeUser = (id) => {
   if (index !== -1) return users.splice(index, 1)[0];
 };
 
-const getUser = (id) => users.find((user) => user.id === id);
+const getUserFromID = (id) => users.find((user) => user.id === id);
+
+const getUserFromSocketID = (id) => users.find((user) => user.socket === id);
 
 module.exports = {
   addUser,
   removeUser,
-  getUser,
+  getUserFromID,
+  getUserFromSocketID,
   changeUserLocation,
 };
