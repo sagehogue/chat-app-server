@@ -3,6 +3,9 @@ const express = require("express");
 const socketio = require("socket.io");
 const cors = require("cors");
 const admin = require("firebase-admin");
+// The Cloud Functions for Firebase SDK to create Cloud Functions and setup triggers.
+const functions = require("firebase-functions");
+
 const util = require("util"); // for objects
 
 // Functions for manipulating server model of active users
