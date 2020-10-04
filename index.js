@@ -341,12 +341,14 @@ io.on("connect", (socket) => {
     const userRef = usersRef.doc(id);
     const userDoc = await userRef.get();
     let userData;
-    if (userDoc) {
+    if (userDoc.exists) {
       userData = userDoc.data();
-      socket.emit("new-avatar", {
-        url: userData.avatar.url,
-        id: userData.avatar.id,
-      });
+      if (userData.avatar) {
+        socket.emit("new-avatar", {
+          url: userData.avatar.url,
+          id: userData.avatar.id,
+        });
+      }
     }
   });
 
