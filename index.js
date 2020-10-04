@@ -625,6 +625,60 @@ io.on("connect", (socket) => {
     });
   });
 
+  //saving and removing saved rooms
+
+  socket.on("add-saved-room", ({ id, roomID }) => {
+    const userRef = usersRef(id);
+    const roomRef = roomsRef(roomID);
+    let userRoomData;
+    db.runTransaction(function (transaction) {
+      return transaction.getAll(userRef, roomRef).then((docs) => {
+        const userDoc = docs[0];
+        const roomDoc = docs[1];
+        if (!userDoc.exists || !roomDoc.exists) {
+          throw "Document does not exist!";
+        }
+        const userData = userDoc.data();
+        const roomData = roomDoc.data();
+        // Get array of user rooms and room members
+        const userRooms = userData.rooms;
+        const roomMembers = roomData.members;
+        // Filter out already favorited rooms
+
+        try {
+          userRooms.map((room) => {
+            if (room.id === roomID) {
+              throw new Error("This room is already saved");
+            }
+          });
+        } catch (err) {
+          // handle error
+        }
+        const newSavedRoom = { id: roomID, roomName: roomData.roomName };
+
+        const newUserSavedRooms = [...userRooms, newSavedRoom];
+
+        const newRoomMember = {
+          id,
+          displayName: userData.displayName,
+          role: "member",
+        };
+
+        const newRoomMembers = [...roomMembers, newRoomMember];
+
+        userRoomData = newUserSavedRooms;
+        // update friends with new array
+        transaction.update(userRef, { rooms: newUserSavedRooms });
+        // update friends with new array
+        transaction.update(roomRef, { members: newRoomMembers });
+      });
+    }).then(() => {
+      socket.emit("userRooms", userRoomData);
+    });
+  });
+
+  socket.on("rmv-saved-room");
+
   // Event fires when user disconnects from socket instance.
   // socket.on("disconnecting", () => {
   //   const rooms = Object.keys(socket.rooms);
