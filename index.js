@@ -634,8 +634,8 @@ io.on("connect", (socket) => {
   //saving and removing saved rooms
 
   socket.on("add-saved-room", ({ id, roomID }) => {
-    const userRef = usersRef(id);
-    const roomRef = roomsRef(roomID);
+    const userRef = usersRef.doc(id);
+    const roomRef = roomsRef.doc(roomID);
     let userRoomData;
     db.runTransaction(function (transaction) {
       return transaction.getAll(userRef, roomRef).then((docs) => {
@@ -683,7 +683,41 @@ io.on("connect", (socket) => {
     });
   });
 
-  socket.on("rmv-saved-room");
+  socket.on("rmv-saved-room", ({ id, roomID }) => {
+    const userRef = usersRef.doc(id);
+    const roomRef = roomsRef.doc(roomID);
+    let userRoomList;
+    db.runTransaction(function (transaction) {
+      return transaction
+        .getAll(userRef, roomRef)
+        .then((docs) => {
+          const userDoc = docs[0];
+          const roomDoc = docs[1];
+          if (!userDoc.exists || !roomDoc.exists) {
+            throw "Document does not exist!";
+          }
+          const userData = userDoc.data();
+          const roomData = roomDoc.data();
+          // Get array of user rooms and room members
+          const userRooms = userData.rooms;
+          const roomMembers = roomData.members;
+          const filteredRoomsArray = userRooms.filter(
+            (room) => room.id !== roomID
+          );
+          const filteredRoomMembersArray = roomMembers.filter(
+            (member) => id !== member.id
+          );
+
+          userRoomList = filteredRoomMembersArray;
+
+          transaction.update(userRef, { rooms: filteredRoomsArray });
+          transaction.update(roomRef, { members: filteredRoomMembersArray });
+        })
+        .then(() => {
+          socket.emit("userRooms", userRoomList);
+        });
+    });
+  });
 
   // Event fires when user disconnects from socket instance.
   // socket.on("disconnecting", () => {
