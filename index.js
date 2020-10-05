@@ -34,11 +34,10 @@ const serviceAccount = require("./API_KEY.json"); // firebase API key
 const { Console } = require("console");
 
 // TODOS:
-// 1) Delete dead code
-// 2) Complete online user model
-// 3) Complete room model
+// 1) Delete dead code & refactor
+// 2) Create user status system
+// 3) Add to room status system
 // 4) Improve documentation
-// 5) Refactor
 
 // Initialization of express app + socket.io
 const app = express();
@@ -60,14 +59,14 @@ app.use(router);
 
 db = admin.firestore();
 
-// getting references to the collection of pre-existing rooms in firebase.
-// remember "collections" are groups of "documents" in firebase.
+// Document collections of user rooms, user accounts.
 
 const roomsRef = db.collection("rooms");
 const usersRef = db.collection("users");
-const testRef = roomsRef.doc("test");
 
-// Fetches message history of a given room. Requires roomName string.
+// FUNCTIONS
+
+// Fetches logged messages for a given room ID
 const getMessageHistory = async (roomID) => {
   const roomRef = db.doc(`rooms/${roomID}`);
   let room = await roomRef.get();
@@ -78,7 +77,7 @@ const getMessageHistory = async (roomID) => {
   }
 };
 
-// Adds message to room thread. Takes a message object and a room name string
+// Adds message to room thread. Takes a message object and a room ID string
 // Message object expected to look like { text, user, time }
 const addMessageToRoom = async (message, roomID) => {
   const roomsRef = db.collection("rooms");
@@ -98,10 +97,6 @@ const addMessageToRoom = async (message, roomID) => {
 
 // CURRENTLY BROKEN
 const updateClientRoomData = async (room) => {
-  // const promise = new Promise((resolve, reject) => {
-  //   resolve(getRoomInfo(room.id));
-  // })
-  // .then((roomInfo) => {
   console.log(`ROOMDATA FOR: ${util.inspect(getRoomInfo(room.id))}`);
   const roomInfo = getRoomInfo(room.id);
   if (roomInfo) {
@@ -111,16 +106,11 @@ const updateClientRoomData = async (room) => {
       onlineUserCount: roomInfo.online,
     });
   }
-  // })
-  // .catch((err) => {
-  //   // ...error handling
-  //   console.log(`Whoops, we had an error! \n${err}`);
-  // });
 };
 
-// socket.io event listeners
+// SOCKET EVENT LISTENERS
 
-// Events listeners in use:
+// Events in use:
 // "connect", "register-user", "join", "login", "sendMessage"
 // "room-disconnect", "createNewRoom", "add-user-room", "remove-user-room"
 // "add-friend", "remove-friend", "accept-friend-request", "decline-friend-request",
@@ -140,11 +130,6 @@ io.on("connect", (socket) => {
   //   id: socket.id,
   //   name: displayName,
   // });
-
-  // some lazy error handling - should be improved upon
-  // if (error) {
-  //   console.log(`error: ${error}`);
-  // }
 
   // a "join" event expects {room: {id: ###, name: ""},user: {name: "", id: ###}}
   socket.on("join", ({ user, room }) => {
@@ -197,31 +182,30 @@ io.on("connect", (socket) => {
   // email, password expected
   socket.on("register-user", ({ email, displayName, uid }) => {
     // CREATE FIRESTORE USER DOC WITH INFORMATION, UID. WE WILL USE THIS TO TIE AUTH TO FRIENDS/ROOMS/OTHER USER INFO
-    console.log("CREATING USER ACCOUNT");
     const userRef = usersRef.doc(uid);
     userRef.get().then((data) => {
       if (data.exists) {
-        console.log("Error: User already exists.");
-        return "Error: User already exists.";
+        throw new Error("User already exists.");
       } else {
         console.log("CREATING USER ACCOUNT ON FIREBASE");
-        const res = userRef
-          .set({
-            email,
-            displayName,
-            friends: [],
-            rooms: [],
-            avatar: "",
-          })
-          .then((res, displayName, email) => {
-            socket.emit("register-user-success", {
-              email,
-              displayName,
-            });
-            return "Success! New user registered.";
+        const newUser = {
+          email,
+          displayName,
+          friends: [],
+          rooms: [],
+          avatar: "",
+        };
+        userRef.set(newUser).then((res, newUser) => {
+          socket.emit("register-user-success", {
+            email: newUser.email,
+            displayName: newUser.displayName,
           });
+          return "Success! New user registered.";
+        });
       }
     });
+    socket.emit("register-user-success");
+
     // create user account with firebase
     // admin
     //   .auth()
@@ -231,7 +215,7 @@ io.on("connect", (socket) => {
     //       displayName: username,
     //     });
     // if successful, emit success event to front-end
-    socket.emit("register-user-success");
+
     // })
     /*.catch(function (error) {
         // Handle Errors here. Needs improvement
@@ -239,6 +223,7 @@ io.on("connect", (socket) => {
         var errorMessage = error.message;
         // ...
       }); */
+    // </ SUSPECTED DEAD CODE>
   });
 
   // email, password expected
