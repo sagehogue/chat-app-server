@@ -3,11 +3,10 @@ const functions = require("firebase-functions");
 const algoliasearch = require("algoliasearch");
 // // Create and Deploy Your First Cloud Functions
 // // https://firebase.google.com/docs/functions/write-firebase-functions
+
+// TODOS
 //
-// exports.helloWorld = functions.https.onRequest((request, response) => {
-//   functions.logger.info("Hello logs!", {structuredData: true});
-//   response.send("Hello from Firebase!");
-// });
+// 1) Write functions to update both the rooms and users indices. They can both be updated in the DB and the index needs to be kept up to date.
 
 const ALGOLIA_ID = functions.config().algolia.app_id;
 const ALGOLIA_ADMIN_KEY = functions.config().algolia.api_key;
