@@ -12,8 +12,10 @@ const ALGOLIA_ID = functions.config().algolia.app_id;
 const ALGOLIA_ADMIN_KEY = functions.config().algolia.api_key;
 const ALGOLIA_SEARCH_KEY = functions.config().algolia.search_key;
 
+// Initializing algolia client
 const client = algoliasearch(ALGOLIA_ID, ALGOLIA_ADMIN_KEY);
 
+// Initializing indexes
 const roomIndex = client.initIndex("room_search");
 const userIndex = client.initIndex("user_search");
 
@@ -26,6 +28,15 @@ exports.indexRoom = functions.firestore
     // Add an 'objectID' field which Algolia requires
     room.objectID = context.params.roomID;
     return roomIndex.saveObject(room);
+  });
+
+exports.updateRoomIndex = functions.firestore
+  .document("/rooms/{roomID}")
+  .onUpdate((snap, context) => {
+    const room = snap.data();
+
+    room.objectID = context.params.roomID;
+    return roomIndex.partialUpdateObject(room);
   });
 
 exports.unindexRoom = functions.firestore
@@ -41,6 +52,15 @@ exports.indexUser = functions.firestore
     const user = snap.data();
     user.objectID = context.params.id;
     return userIndex.saveObject(user);
+  });
+
+exports.updateUserIndex = functions.firestore
+  .document("/users/{id}")
+  .onUpdate((snap, context) => {
+    const user = snap.data();
+
+    user.objectID = context.params.id;
+    return userIndex.partialUpdateObject(user);
   });
 
 exports.unindexUser = functions.firestore
