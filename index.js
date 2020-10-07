@@ -283,40 +283,93 @@ io.on("connect", (socket) => {
     socket.broadcast.emit("top8Rooms", topRooms);
   });
 
+  // handles creation of new rooms by users (old version)
+  // socket.on(
+  //   "createNewRoom",
+  //   ({ roomName, passwordProtected, password, creator, creatorUID }) => {
+  //     roomsRef
+  //       .add({
+  //         roomName: roomName,
+  //         creator: creator,
+  //         passwordProtected: passwordProtected,
+  //         password: password,
+  //         members: [{ displayName: creator, id: creatorUID, role: "creator" }],
+  //       })
+  //       .then(async (res) => {
+  //         const userRef = usersRef.doc(creatorUID);
+  //         const result = await userRef.update({
+  //           rooms: admin.firestore.FieldValue.arrayUnion({
+  //             id: res.id,
+  //             roomName: roomName,
+  //           }),
+  //         });
+  //         return "Success! New Room created with ID: " + res.id;
+  //       });
+
   // handles creation of new rooms by users
-  socket.on(
-    "createNewRoom",
-    ({ roomName, passwordProtected, password, creator, creatorUID }) => {
-      roomsRef
-        .add({
+  socket.on("createNewRoom", async (data) => {
+    const {
+      roomName,
+      passwordProtected,
+      password,
+      creator,
+      creatorUID,
+      roomID,
+    } = data;
+
+    let avatar;
+    if (data.avatar) {
+      avatar = data.avater;
+    } else {
+      avatar = "";
+    }
+
+    const userRef = usersRef.doc(creatorUID);
+    const roomRef = roomsRef.doc(roomID);
+    socket.join(roomID);
+
+    db.runTransaction(function (transaction) {
+      return transaction.getAll(roomRef, userRef).then((docs) => {
+        const roomDoc = docs[0];
+        const userDoc = docs[1];
+        if (!userDoc.exists) {
+          throw Error("User does not exist!");
+        }
+
+        const userData = userDoc.data();
+
+        const roomForUser = { id: roomID, roomName: roomName, avatar };
+        const roomDocContent = {
+          id: roomID,
           roomName: roomName,
+          avatar,
           creator: creator,
           passwordProtected: passwordProtected,
           password: password,
           members: [{ displayName: creator, id: creatorUID, role: "creator" }],
-        })
-        .then(async (res) => {
-          const userRef = usersRef.doc(creatorUID);
-          const result = await userRef.update({
-            rooms: admin.firestore.FieldValue.arrayUnion({
-              id: res.id,
-              roomName: roomName,
-            }),
-          });
-          return "Success! New Room created with ID: " + res.id;
-        });
-      // .get()
-      // .then((data) => {
-      //   if (data.exists) {
-      //     console.log("Error: roomName already taken");
-      //     return "Error: roomName already taken";
-      //   } else {
-      //     const res = roomsRef
+        };
 
-      //   }
-      // });
-    }
-  );
+        const newUserRooms = [...userData.rooms, roomForUser];
+
+        transaction.set(roomRef, roomDocContent);
+
+        transaction.update(userRef, { rooms: newUserRooms });
+      });
+    }).then(() => {
+      const user = {
+        displayName: creator,
+        id: creatorUID,
+        sessionID,
+      };
+      const room = { id: roomID, roomName };
+      updateClientRoomData(addRoom(room, user));
+      socket.emit("message", {
+        user: "admin",
+        text: `${user.displayName}, welcome to ${room.roomName}, your new room. Invite some friends, or secure it with a password in the settings.`,
+        time: getCurrentTime(),
+      });
+    });
+  });
 
   socket.on("user-status", (user) => {
     addUser(user);
