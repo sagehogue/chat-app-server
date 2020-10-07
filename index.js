@@ -759,56 +759,57 @@ io.on("connect", (socket) => {
     });
   });
 
-  //for add favorite room
-  // socket.on("add-saved-room", ({ id, roomID }) => {
-  //   const userRef = usersRef.doc(id);
-  //   const roomRef = roomsRef.doc(roomID);
-  //   let userRoomData;
-  //   db.runTransaction(function (transaction) {
-  //     return transaction.getAll(userRef, roomRef).then((docs) => {
-  //       const userDoc = docs[0];
-  //       const roomDoc = docs[1];
-  //       if (!userDoc.exists || !roomDoc.exists) {
-  //         throw "Document does not exist!";
-  //       }
-  //       const userData = userDoc.data();
-  //       const roomData = roomDoc.data();
-  //       // Get array of user rooms and room members
-  //       const userRooms = userData.rooms;
-  //       const roomMembers = roomData.members;
-  //       // Filter out already favorited rooms
+  // for add favorite room
 
-  //       try {
-  //         userRooms.map((room) => {
-  //           if (room.id === roomID) {
-  //             throw new Error("This room is already saved");
-  //           }
-  //         });
-  //       } catch (err) {
-  //         // handle error
-  //       }
-  //       const newSavedRoom = { id: roomID, roomName: roomData.roomName };
+  socket.on("add-favorite-room", ({ id, roomID }) => {
+    const userRef = usersRef.doc(id);
+    const roomRef = roomsRef.doc(roomID);
+    let userRoomData;
+    db.runTransaction(function (transaction) {
+      return transaction.getAll(userRef, roomRef).then((docs) => {
+        const userDoc = docs[0];
+        const roomDoc = docs[1];
+        if (!userDoc.exists || !roomDoc.exists) {
+          throw "Document does not exist!";
+        }
+        const userData = userDoc.data();
+        const roomData = roomDoc.data();
+        // Get array of user rooms and room members
+        const userRooms = userData.rooms;
+        const roomMembers = roomData.members;
+        // Filter out already favorited rooms
 
-  //       const newUserSavedRooms = [...userRooms, newSavedRoom];
+        try {
+          userRooms.map((room) => {
+            if (room.id === roomID) {
+              throw new Error("This room is already favorited");
+            }
+          });
+        } catch (err) {
+          // handle error
+        }
+        const newFavoriteRoom = { id: roomID, roomName: roomData.roomName };
 
-  //       const newRoomMember = {
-  //         id,
-  //         displayName: userData.displayName,
-  //         role: "member",
-  //       };
+        const newUserFavoriteRooms = [...userRooms, newFavoriteRoom];
 
-  //       const newRoomMembers = [...roomMembers, newRoomMember];
+        const newRoomMember = {
+          id,
+          displayName: userData.displayName,
+          role: "member",
+        };
 
-  //       userRoomData = newUserSavedRooms;
-  //       // update friends with new array
-  //       transaction.update(userRef, { rooms: newUserSavedRooms });
-  //       // update friends with new array
-  //       transaction.update(roomRef, { members: newRoomMembers });
-  //     });
-  //   }).then(() => {
-  //     socket.emit("userRooms", userRoomData);
-  //   });
-  // });
+        const newRoomMembers = [...roomMembers, newRoomMember];
+
+        userRoomData = newUserFavoriteRooms;
+        // update friends with new array
+        transaction.update(userRef, { rooms: newUserFavoriteRooms });
+        // update friends with new array
+        transaction.update(roomRef, { members: newRoomMembers });
+      });
+    }).then(() => {
+      socket.emit("userRooms", userRoomData);
+    });
+  });
 
   // Event fires when user disconnects from socket instance.
   // socket.on("disconnecting", () => {
@@ -831,6 +832,7 @@ io.on("connect", (socket) => {
   //   const topRooms = getMostPopulousRooms(8);
   //   socket.broadcast.emit("top8Rooms", topRooms);
   // });
+
   socket.on("disconnect", () => {
     const rooms = Object.keys(socket.rooms);
 
