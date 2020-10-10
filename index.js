@@ -133,6 +133,7 @@ io.on("connect", (socket) => {
 
   // a "join" event expects {room: {id: ###, name: ""},user: {name: "", id: ###}}
   socket.on("join", ({ user, room }) => {
+    console.log(`User: ${util.inspect(user)} \nRoom: ${util.inspect(room)}`);
     // Add user to user list
     addUser({
       id: user.id,
