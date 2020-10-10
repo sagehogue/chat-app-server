@@ -36,6 +36,7 @@ exports.updateRoomIndex = functions.firestore
     const room = snap.data();
 
     room.objectID = context.params.roomID;
+    room.memberCount = room.members.length;
     return roomIndex.partialUpdateObject(room);
   });
 
