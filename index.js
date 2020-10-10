@@ -700,7 +700,11 @@ io.on("connect", (socket) => {
         } catch (err) {
           // handle error
         }
-        const newSavedRoom = { id: roomID, roomName: roomData.roomName };
+        const newSavedRoom = {
+          id: roomID,
+          roomName: roomData.roomName,
+          isFavorite: false,
+        };
 
         const newUserSavedRooms = [...userRooms, newSavedRoom];
 
@@ -765,6 +769,10 @@ io.on("connect", (socket) => {
     const userRef = usersRef.doc(id);
     const roomRef = roomsRef.doc(roomID);
     let userRoomData;
+    let newUserRooms;
+    let shouldUpdateUserRooms = true;
+    let shouldUpdateMemberList = true;
+    let roomPreviouslySaved = false;
     db.runTransaction(function (transaction) {
       return transaction.getAll(userRef, roomRef).then((docs) => {
         const userDoc = docs[0];
@@ -782,15 +790,32 @@ io.on("connect", (socket) => {
         try {
           userRooms.map((room) => {
             if (room.id === roomID) {
-              throw new Error("This room is already favorited");
+              roomPreviouslySaved = true;
+              shouldUpdateMemberList = false;
+              if (room.isFavorite === true) {
+                shouldUpdateUserRooms = false;
+                throw new Error("This room is already favorited");
+              } else {
+                newUserRooms = userRooms.filter(
+                  (room) => !(roomID === room.id)
+                );
+                userRoomData = newUserRooms;
+                const newRoom = { ...room, isFavorite: true };
+                newUserRooms.push(newRoom);
+              }
             }
           });
         } catch (err) {
+          console.log(`ERROR: ${error}`);
           // handle error
         }
-        const newFavoriteRoom = { id: roomID, roomName: roomData.roomName };
-
-        const newUserFavoriteRooms = [...userRooms, newFavoriteRoom];
+        if (!roomPreviouslySaved) {
+          newUserRooms = [
+            ...userRooms,
+            { id: roomID, roomName: roomData.roomName, isFavorite: true },
+          ];
+          userRoomData = newUserRooms;
+        }
 
         const newRoomMember = {
           id,
@@ -800,16 +825,57 @@ io.on("connect", (socket) => {
 
         const newRoomMembers = [...roomMembers, newRoomMember];
 
-        userRoomData = newUserFavoriteRooms;
         // update friends with new array
-        transaction.update(userRef, { rooms: newUserFavoriteRooms });
+        if (shouldUpdateUserRooms) {
+          transaction.update(userRef, { rooms: newUserRooms });
+        }
         // update friends with new array
-        transaction.update(roomRef, { members: newRoomMembers });
+        if (shouldUpdateMemberList) {
+          transaction.update(roomRef, { members: newRoomMembers });
+        }
       });
     }).then(() => {
       socket.emit("userRooms", userRoomData);
     });
   });
+
+  //remove favorite room
+
+  // socket.on("rmv-favorite-room", ({ id, roomID }) => {
+  //   const userRef = usersRef.doc(id);
+  //   const roomRef = roomsRef.doc(roomID);
+  //   let userRoomList;
+  //   db.runTransaction(function (transaction) {
+  //     return transaction
+  //       .getAll(userRef, roomRef)
+  //       .then((docs) => {
+  //         const userDoc = docs[0];
+  //         const roomDoc = docs[1];
+  //         if (!userDoc.exists || !roomDoc.exists) {
+  //           throw "Document does not exist!";
+  //         }
+  //         const userData = userDoc.data();
+  //         const roomData = roomDoc.data();
+  //         // Get array of user rooms and room members
+  //         const userRooms = userData.rooms;
+  //         const roomMembers = roomData.members;
+  //         const filteredRoomsArray = userRooms.filter(
+  //           (room) => room.id !== roomID
+  //         );
+  //         const filteredRoomMembersArray = roomMembers.filter(
+  //           (member) => id !== member.id
+  //         );
+
+  //         userRoomList = filteredRoomMembersArray;
+
+  //         transaction.update(userRef, { rooms: filteredRoomsArray });
+  //         transaction.update(roomRef, { members: filteredRoomMembersArray });
+  //       })
+  //       .then(() => {
+  //         socket.emit("userRooms", userRoomList);
+  //       });
+  //   });
+  // });
 
   // Event fires when user disconnects from socket instance.
   // socket.on("disconnecting", () => {
