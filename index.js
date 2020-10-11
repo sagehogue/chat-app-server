@@ -672,7 +672,18 @@ io.on("connect", (socket) => {
     });
   });
 
-  //saving and removing saved rooms
+  //saving and removing saved rooms 
+
+  //saving rooms currently broken. Errors saying:
+  // Error: Value for argument "documentPath" is not a valid resource path. Path must be a non-empty string.
+  //   at Object.validateResourcePath (C:\Users\Willp\Desktop\chat-app-sage\server\node_modules\@google-cloud\firestore\build\src\path.js:407:15)
+  //   at CollectionReference.doc (C:\Users\Willp\Desktop\chat-app-sage\server\node_modules\@google-cloud\firestore\build\src\reference.js:1944:20)
+  //   at Socket.<anonymous> (C:\Users\Willp\Desktop\chat-app-sage\server\index.js:681:30)
+  //   at Socket.emit (events.js:315:20)
+  //   at C:\Users\Willp\Desktop\chat-app-sage\server\node_modules\socket.io\lib\socket.js:528:12
+  //   at processTicksAndRejections (internal/process/task_queues.js:79:11)
+
+  //also, if user is in a room and creates a new room, the message welcoming the user to the new room will appear in the old room. 
 
   socket.on("add-saved-room", ({ id, roomID }) => {
     const userRef = usersRef.doc(id);
