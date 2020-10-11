@@ -684,6 +684,7 @@ io.on("connect", (socket) => {
   //   at processTicksAndRejections (internal/process/task_queues.js:79:11)
 
   //also, if user is in a room and creates a new room, the message welcoming the user to the new room will appear in the old room. 
+  //eg, you're in room "test" and click the new room button, you label the room "test2" and click submit. The current room "test" will display a new message saying "welcome to your new room test2" even though you are still in room "test". 
 
   socket.on("add-saved-room", ({ id, roomID }) => {
     const userRef = usersRef.doc(id);
