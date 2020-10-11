@@ -686,6 +686,8 @@ io.on("connect", (socket) => {
   //also, if user is in a room and creates a new room, the message welcoming the user to the new room will appear in the old room. 
   //eg, you're in room "test" and click the new room button, you label the room "test2" and click submit. The current room "test" will display a new message saying "welcome to your new room test2" even though you are still in room "test". 
 
+  
+
   socket.on("add-saved-room", ({ id, roomID }) => {
     const userRef = usersRef.doc(id);
     const roomRef = roomsRef.doc(roomID);
@@ -852,6 +854,8 @@ io.on("connect", (socket) => {
     });
   });
 
+  //need to create rmv favorite room function
+  
   //remove favorite room
 
   // socket.on("rmv-favorite-room", ({ id, roomID }) => {
