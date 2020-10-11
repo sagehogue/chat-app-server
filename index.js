@@ -117,6 +117,7 @@ const updateClientRoomData = async (room) => {
 // "cancel-friend-request", "requestTop8Rooms", requestUserRooms, "fetch-friends", "disconnecting"
 io.on("connect", (socket) => {
   // gets displayName from socket
+  console.log("connecting socket id " + socket.id);
   let displayName, accountID;
   const sessionID = socket.id;
   if (socket.handshake.query.id) {
@@ -139,6 +140,7 @@ io.on("connect", (socket) => {
       id: user.id,
       room: room.id,
       socket: socket.id,
+      sessionID,
       name: user.displayName,
     });
     // Connect user
@@ -672,7 +674,7 @@ io.on("connect", (socket) => {
     });
   });
 
-  //saving and removing saved rooms 
+  //saving and removing saved rooms
 
   //saving rooms currently broken. Errors saying:
   // Error: Value for argument "documentPath" is not a valid resource path. Path must be a non-empty string.
@@ -683,10 +685,8 @@ io.on("connect", (socket) => {
   //   at C:\Users\Willp\Desktop\chat-app-sage\server\node_modules\socket.io\lib\socket.js:528:12
   //   at processTicksAndRejections (internal/process/task_queues.js:79:11)
 
-  //also, if user is in a room and creates a new room, the message welcoming the user to the new room will appear in the old room. 
-  //eg, you're in room "test" and click the new room button, you label the room "test2" and click submit. The current room "test" will display a new message saying "welcome to your new room test2" even though you are still in room "test". 
-
-  
+  //also, if user is in a room and creates a new room, the message welcoming the user to the new room will appear in the old room.
+  //eg, you're in room "test" and click the new room button, you label the room "test2" and click submit. The current room "test" will display a new message saying "welcome to your new room test2" even though you are still in room "test".
 
   socket.on("add-saved-room", ({ id, roomID, avatar = false }) => {
     const userRef = usersRef.doc(id);
@@ -719,10 +719,7 @@ io.on("connect", (socket) => {
           id: roomID,
           roomName: roomData.roomName,
           isFavorite: false,
-<<<<<<< HEAD
           avatar,
-=======
->>>>>>> c7f4a8628eb1cd172a9907b398b8bd8cc1b377b2
         };
 
         const newUserSavedRooms = [...userRooms, newSavedRoom];
@@ -809,10 +806,6 @@ io.on("connect", (socket) => {
 
         try {
           userRooms.map((room) => {
-<<<<<<< HEAD
-            if (room.id === roomID && room.isFavorite) {
-              throw new Error("This room is already favorited");
-=======
             if (room.id === roomID) {
               roomPreviouslySaved = true;
               shouldUpdateMemberList = false;
@@ -827,31 +820,24 @@ io.on("connect", (socket) => {
                 const newRoom = { ...room, isFavorite: true };
                 newUserRooms.push(newRoom);
               }
->>>>>>> c7f4a8628eb1cd172a9907b398b8bd8cc1b377b2
             }
           });
         } catch (err) {
           console.log(`ERROR: ${error}`);
           // handle error
         }
-<<<<<<< HEAD
-        const newFavoriteRoom = {
-          id: roomID,
-          roomName: roomData.roomName,
-          avatar: roomData.avatar,
-          isFavorite: true,
-        };
-
-        const newUserFavoriteRooms = [...userRooms, newFavoriteRoom];
-=======
         if (!roomPreviouslySaved) {
           newUserRooms = [
             ...userRooms,
-            { id: roomID, roomName: roomData.roomName, isFavorite: true },
+            {
+              id: roomID,
+              roomName: roomData.roomName,
+              isFavorite: true,
+              avatar: roomData.avatar,
+            },
           ];
           userRoomData = newUserRooms;
         }
->>>>>>> c7f4a8628eb1cd172a9907b398b8bd8cc1b377b2
 
         const newRoomMember = {
           id,
@@ -876,7 +862,7 @@ io.on("connect", (socket) => {
   });
 
   //need to create rmv favorite room function
-  
+
   //remove favorite room
 
   // socket.on("rmv-favorite-room", ({ id, roomID }) => {
@@ -937,25 +923,32 @@ io.on("connect", (socket) => {
   //   socket.broadcast.emit("top8Rooms", topRooms);
   // });
 
-  socket.on("disconnect", () => {
+  socket.on("disconnecting", () => {
+    console.log(`***DISCONNECTING***`);
     const rooms = Object.keys(socket.rooms);
-
+    console.log(`ROOMS: ${util.inspect(rooms)}`);
     // use socket.id to find username
+    console.log("Disconnecting socket id" + socket.id);
     const disconnectingUser = getUserFromSocketID(socket.id);
+    console.log(`USER: ${util.inspect(disconnectingUser)}`);
     if (disconnectingUser) {
       const username = disconnectingUser.name;
+      const id = disconnectingUser.id;
 
       // Sends user-disconnect events to rooms user was active in.
       rooms.map((room) => {
-        socket.broadcast
-          .to(room)
-          .emit("user-disconnect", { user: username, id: socket.id });
-        // SEND UPDATED ROOMDATA TO ROOMS
-        // ...
-        removeUserFromRoom(disconnectingUser, room);
+        if (room !== socket.id) {
+          socket.broadcast
+            .to(room)
+            .emit("user-disconnect", { user: username, id });
+          // SEND UPDATED ROOMDATA TO ROOMS
+          // ...
+          removeUserFromRoom(disconnectingUser, { id: room });
+        }
       });
       // remove user from online users
       removeUser(disconnectingUser.id);
+
       const topRooms = getMostPopulousRooms(8);
       socket.broadcast.emit("top8Rooms", topRooms);
     }
