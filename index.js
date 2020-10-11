@@ -674,7 +674,7 @@ io.on("connect", (socket) => {
 
   //saving and removing saved rooms
 
-  socket.on("add-saved-room", ({ id, roomID }) => {
+  socket.on("add-saved-room", ({ id, roomID, avatar = false }) => {
     const userRef = usersRef.doc(id);
     const roomRef = roomsRef.doc(roomID);
     let userRoomData;
@@ -701,13 +701,19 @@ io.on("connect", (socket) => {
         } catch (err) {
           // handle error
         }
-        const newSavedRoom = { id: roomID, roomName: roomData.roomName };
+        const newSavedRoom = {
+          id: roomID,
+          roomName: roomData.roomName,
+          isFavorite: false,
+          avatar,
+        };
 
         const newUserSavedRooms = [...userRooms, newSavedRoom];
 
         const newRoomMember = {
           id,
           displayName: userData.displayName,
+          avatar: userData.avatar,
           role: "member",
         };
 
@@ -782,14 +788,19 @@ io.on("connect", (socket) => {
 
         try {
           userRooms.map((room) => {
-            if (room.id === roomID) {
+            if (room.id === roomID && room.isFavorite) {
               throw new Error("This room is already favorited");
             }
           });
         } catch (err) {
           // handle error
         }
-        const newFavoriteRoom = { id: roomID, roomName: roomData.roomName };
+        const newFavoriteRoom = {
+          id: roomID,
+          roomName: roomData.roomName,
+          avatar: roomData.avatar,
+          isFavorite: true,
+        };
 
         const newUserFavoriteRooms = [...userRooms, newFavoriteRoom];
 
