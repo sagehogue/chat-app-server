@@ -672,7 +672,21 @@ io.on("connect", (socket) => {
     });
   });
 
-  //saving and removing saved rooms
+  //saving and removing saved rooms 
+
+  //saving rooms currently broken. Errors saying:
+  // Error: Value for argument "documentPath" is not a valid resource path. Path must be a non-empty string.
+  //   at Object.validateResourcePath (C:\Users\Willp\Desktop\chat-app-sage\server\node_modules\@google-cloud\firestore\build\src\path.js:407:15)
+  //   at CollectionReference.doc (C:\Users\Willp\Desktop\chat-app-sage\server\node_modules\@google-cloud\firestore\build\src\reference.js:1944:20)
+  //   at Socket.<anonymous> (C:\Users\Willp\Desktop\chat-app-sage\server\index.js:681:30)
+  //   at Socket.emit (events.js:315:20)
+  //   at C:\Users\Willp\Desktop\chat-app-sage\server\node_modules\socket.io\lib\socket.js:528:12
+  //   at processTicksAndRejections (internal/process/task_queues.js:79:11)
+
+  //also, if user is in a room and creates a new room, the message welcoming the user to the new room will appear in the old room. 
+  //eg, you're in room "test" and click the new room button, you label the room "test2" and click submit. The current room "test" will display a new message saying "welcome to your new room test2" even though you are still in room "test". 
+
+  
 
   socket.on("add-saved-room", ({ id, roomID, avatar = false }) => {
     const userRef = usersRef.doc(id);
@@ -705,7 +719,10 @@ io.on("connect", (socket) => {
           id: roomID,
           roomName: roomData.roomName,
           isFavorite: false,
+<<<<<<< HEAD
           avatar,
+=======
+>>>>>>> c7f4a8628eb1cd172a9907b398b8bd8cc1b377b2
         };
 
         const newUserSavedRooms = [...userRooms, newSavedRoom];
@@ -772,6 +789,10 @@ io.on("connect", (socket) => {
     const userRef = usersRef.doc(id);
     const roomRef = roomsRef.doc(roomID);
     let userRoomData;
+    let newUserRooms;
+    let shouldUpdateUserRooms = true;
+    let shouldUpdateMemberList = true;
+    let roomPreviouslySaved = false;
     db.runTransaction(function (transaction) {
       return transaction.getAll(userRef, roomRef).then((docs) => {
         const userDoc = docs[0];
@@ -788,13 +809,32 @@ io.on("connect", (socket) => {
 
         try {
           userRooms.map((room) => {
+<<<<<<< HEAD
             if (room.id === roomID && room.isFavorite) {
               throw new Error("This room is already favorited");
+=======
+            if (room.id === roomID) {
+              roomPreviouslySaved = true;
+              shouldUpdateMemberList = false;
+              if (room.isFavorite === true) {
+                shouldUpdateUserRooms = false;
+                throw new Error("This room is already favorited");
+              } else {
+                newUserRooms = userRooms.filter(
+                  (room) => !(roomID === room.id)
+                );
+                userRoomData = newUserRooms;
+                const newRoom = { ...room, isFavorite: true };
+                newUserRooms.push(newRoom);
+              }
+>>>>>>> c7f4a8628eb1cd172a9907b398b8bd8cc1b377b2
             }
           });
         } catch (err) {
+          console.log(`ERROR: ${error}`);
           // handle error
         }
+<<<<<<< HEAD
         const newFavoriteRoom = {
           id: roomID,
           roomName: roomData.roomName,
@@ -803,6 +843,15 @@ io.on("connect", (socket) => {
         };
 
         const newUserFavoriteRooms = [...userRooms, newFavoriteRoom];
+=======
+        if (!roomPreviouslySaved) {
+          newUserRooms = [
+            ...userRooms,
+            { id: roomID, roomName: roomData.roomName, isFavorite: true },
+          ];
+          userRoomData = newUserRooms;
+        }
+>>>>>>> c7f4a8628eb1cd172a9907b398b8bd8cc1b377b2
 
         const newRoomMember = {
           id,
@@ -812,16 +861,59 @@ io.on("connect", (socket) => {
 
         const newRoomMembers = [...roomMembers, newRoomMember];
 
-        userRoomData = newUserFavoriteRooms;
         // update friends with new array
-        transaction.update(userRef, { rooms: newUserFavoriteRooms });
+        if (shouldUpdateUserRooms) {
+          transaction.update(userRef, { rooms: newUserRooms });
+        }
         // update friends with new array
-        transaction.update(roomRef, { members: newRoomMembers });
+        if (shouldUpdateMemberList) {
+          transaction.update(roomRef, { members: newRoomMembers });
+        }
       });
     }).then(() => {
       socket.emit("userRooms", userRoomData);
     });
   });
+
+  //need to create rmv favorite room function
+  
+  //remove favorite room
+
+  // socket.on("rmv-favorite-room", ({ id, roomID }) => {
+  //   const userRef = usersRef.doc(id);
+  //   const roomRef = roomsRef.doc(roomID);
+  //   let userRoomList;
+  //   db.runTransaction(function (transaction) {
+  //     return transaction
+  //       .getAll(userRef, roomRef)
+  //       .then((docs) => {
+  //         const userDoc = docs[0];
+  //         const roomDoc = docs[1];
+  //         if (!userDoc.exists || !roomDoc.exists) {
+  //           throw "Document does not exist!";
+  //         }
+  //         const userData = userDoc.data();
+  //         const roomData = roomDoc.data();
+  //         // Get array of user rooms and room members
+  //         const userRooms = userData.rooms;
+  //         const roomMembers = roomData.members;
+  //         const filteredRoomsArray = userRooms.filter(
+  //           (room) => room.id !== roomID
+  //         );
+  //         const filteredRoomMembersArray = roomMembers.filter(
+  //           (member) => id !== member.id
+  //         );
+
+  //         userRoomList = filteredRoomMembersArray;
+
+  //         transaction.update(userRef, { rooms: filteredRoomsArray });
+  //         transaction.update(roomRef, { members: filteredRoomMembersArray });
+  //       })
+  //       .then(() => {
+  //         socket.emit("userRooms", userRoomList);
+  //       });
+  //   });
+  // });
 
   // Event fires when user disconnects from socket instance.
   // socket.on("disconnecting", () => {
