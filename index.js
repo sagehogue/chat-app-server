@@ -248,7 +248,7 @@ io.on("connect", (socket) => {
       );
 
       // socket id of message author
-      const sender = getUser(uid);
+      const sender = getUserFromID(uid);
 
       // actual message
       const message = { user, text, time, room, uid };
