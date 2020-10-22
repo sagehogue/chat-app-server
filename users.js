@@ -10,24 +10,25 @@ const users = [];
 
 // Method to add a new user to the array of online users
 // name is display name, room is the room they are currently in.
-const addUser = ({ id, socket, name, room = false }) => {
+const addUser = ({ id, sessionID, name, room = false }) => {
   // searches for existing
   existingUser = false;
   existingUser = users.find((user) => user.id === id);
 
-  if (existingUser) {
-    existingUser.socket = socket;
-    return existingUser;
-  } else {
-    // new user object created from our arguments
-    const user = { id, name, room, socket };
+  // if (existingUser) {
+  //   existingUser.socket = socket;
+  //   return existingUser;
+  // }
+  // else {
+  // new user object created from our arguments
+  const user = { id, name, room, sessionID };
 
-    // add it to the array of online users
-    users.push(user);
+  // add it to the array of online users
+  users.push(user);
 
-    // return user object if it was successfully addded to the list.
-    return user;
-  }
+  // return user object if it was successfully addded to the list.
+  return user;
+  // }
 };
 
 const changeUserLocation = ({ id, newRoom }) => {
@@ -48,7 +49,7 @@ const removeUser = (id) => {
 
 const getUserFromID = (id) => users.find((user) => user.id === id);
 
-const getUserFromSocketID = (id) => users.find((user) => user.socket === id);
+const getUserFromSocketID = (id) => users.find((user) => user.sessionID === id);
 
 module.exports = {
   addUser,

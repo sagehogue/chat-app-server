@@ -75,8 +75,9 @@ const getMostPopulousRooms = (quantity) => {
 };
 
 //  remove user from room and decrements online user count. Removes room if no users are active.
+// user: {id } room: {id}
 const removeUserFromRoom = (user, room) => {
-  const { roomName, id } = room;
+  const { id } = room;
   const roomID = id;
   // finds room
   const roomToRemoveUserFrom = rooms.find(

@@ -117,6 +117,7 @@ const updateClientRoomData = async (room) => {
 // "cancel-friend-request", "requestTop8Rooms", requestUserRooms, "fetch-friends", "disconnecting"
 io.on("connect", (socket) => {
   // gets displayName from socket
+  console.log("connecting socket id " + socket.id);
   let displayName, accountID;
   const sessionID = socket.id;
   if (socket.handshake.query.id) {
@@ -139,6 +140,7 @@ io.on("connect", (socket) => {
       id: user.id,
       room: room.id,
       socket: socket.id,
+      sessionID,
       name: user.displayName,
     });
     // Connect user
@@ -721,7 +723,7 @@ io.on("connect", (socket) => {
   //also, if user is in a room and creates a new room, the message welcoming the user to the new room will appear in the old room.
   //eg, you're in room "test" and click the new room button, you label the room "test2" and click submit. The current room "test" will display a new message saying "welcome to your new room test2" even though you are still in room "test".
 
-  socket.on("add-saved-room", ({ id, roomID }) => {
+  socket.on("add-saved-room", ({ id, roomID, avatar = false }) => {
     const userRef = usersRef.doc(id);
     const roomRef = roomsRef.doc(roomID);
     let userRoomData;
@@ -752,6 +754,7 @@ io.on("connect", (socket) => {
           id: roomID,
           roomName: roomData.roomName,
           isFavorite: false,
+          avatar,
         };
 
         const newUserSavedRooms = [...userRooms, newSavedRoom];
@@ -759,6 +762,7 @@ io.on("connect", (socket) => {
         const newRoomMember = {
           id,
           displayName: userData.displayName,
+          avatar: userData.avatar,
           role: "member",
         };
 
@@ -860,7 +864,12 @@ io.on("connect", (socket) => {
         if (!roomPreviouslySaved) {
           newUserRooms = [
             ...userRooms,
-            { id: roomID, roomName: roomData.roomName, isFavorite: true },
+            {
+              id: roomID,
+              roomName: roomData.roomName,
+              isFavorite: true,
+              avatar: roomData.avatar,
+            },
           ];
           userRoomData = newUserRooms;
         }
@@ -949,25 +958,32 @@ io.on("connect", (socket) => {
   //   socket.broadcast.emit("top8Rooms", topRooms);
   // });
 
-  socket.on("disconnect", () => {
+  socket.on("disconnecting", () => {
+    console.log(`***DISCONNECTING***`);
     const rooms = Object.keys(socket.rooms);
-
+    console.log(`ROOMS: ${util.inspect(rooms)}`);
     // use socket.id to find username
+    console.log("Disconnecting socket id" + socket.id);
     const disconnectingUser = getUserFromSocketID(socket.id);
+    console.log(`USER: ${util.inspect(disconnectingUser)}`);
     if (disconnectingUser) {
       const username = disconnectingUser.name;
+      const id = disconnectingUser.id;
 
       // Sends user-disconnect events to rooms user was active in.
       rooms.map((room) => {
-        socket.broadcast
-          .to(room)
-          .emit("user-disconnect", { user: username, id: socket.id });
-        // SEND UPDATED ROOMDATA TO ROOMS
-        // ...
-        removeUserFromRoom(disconnectingUser, room);
+        if (room !== socket.id) {
+          socket.broadcast
+            .to(room)
+            .emit("user-disconnect", { user: username, id });
+          // SEND UPDATED ROOMDATA TO ROOMS
+          // ...
+          removeUserFromRoom(disconnectingUser, { id: room });
+        }
       });
       // remove user from online users
       removeUser(disconnectingUser.id);
+
       const topRooms = getMostPopulousRooms(8);
       socket.broadcast.emit("top8Rooms", topRooms);
     }
