@@ -194,7 +194,7 @@ io.on("connect", (socket) => {
           displayName,
           friends: [],
           rooms: [],
-          avatar: "",
+          avatar: false,
         };
         userRef.set(newUser).then((res, newUser) => {
           socket.emit("register-user-success", {
@@ -393,9 +393,11 @@ io.on("connect", (socket) => {
 
   socket.on("change-avatar", async ({ id, image }) => {
     const userRef = usersRef.doc(id);
-    await userRef.update({ avatar: image }).then((res) => {
-      socket.emit("new-avatar", image);
-    });
+    await userRef
+      .update({ avatar: { url: image.url, id: image.id } })
+      .then((res) => {
+        socket.emit("new-avatar", image);
+      });
   });
 
   socket.on("add-user-room", async ({ uid, roomID, favorite = false }) => {
@@ -443,6 +445,9 @@ io.on("connect", (socket) => {
         }
         const authorData = authorDoc.data();
         const recipientData = recipientDoc.data();
+
+        newSentFriendRequest.avatar = recipientData.avatar;
+        newPendingFriend.avatar = authorData.avatar;
         // Get array of request author & recipient friend lists
         const authorFriends = authorData.friends;
         const recipientFriends = recipientData.friends;
@@ -463,7 +468,7 @@ io.on("connect", (socket) => {
         });
         if (nonDuplicateFriend) {
           let recipientUser;
-          recipientUser = getUser(friendUID);
+          recipientUser = getUserFromID(friendUID);
           if (recipientUser) {
             socket.emit("new-friend-request", newPendingFriend);
           }
@@ -493,7 +498,10 @@ io.on("connect", (socket) => {
           throw "Document does not exist!";
         }
         const authorData = authorDoc.data();
+        console.log(authorData);
         const recipientData = recipientDoc.data();
+        console.log(recipientData);
+
         // Get array of request author & recipient friend lists
         const authorFriends = authorData.friends;
         const recipientFriends = recipientData.friends;
@@ -504,6 +512,7 @@ io.on("connect", (socket) => {
               displayName: friend.displayName,
               id: friend.id,
               isFriend: true,
+              avatar: recipientData.avatar,
             };
           } else {
             return friend;
@@ -516,11 +525,14 @@ io.on("connect", (socket) => {
               displayName: friend.displayName,
               id: friend.id,
               isFriend: true,
+              avatar: authorData.avatar,
             };
           } else {
             return friend;
           }
         });
+
+        console.log(newAuthorFriendsArray);
         // update friends with new array
         transaction.update(authorRef, { friends: newAuthorFriendsArray });
         // update friends with new array
@@ -660,19 +672,42 @@ io.on("connect", (socket) => {
     const userRef = usersRef.doc(uid);
     await userRef.get().then((data) => {
       if (data.exists) {
-        console.log(
-          `FRIEND DATA FOR YA` +
-            util.inspect(data.data().friends, {
-              showHidden: false,
-              depth: null,
-            })
-        );
-        socket.emit("userFriends", data.data().friends);
+        const userFriends = data.data().friends;
+        const friendsListIDs = userFriends.map((friend) => {
+          return friend.id;
+        });
+        const friendRefs = friendsListIDs.map((id) => {
+          return usersRef.doc(id);
+        });
+
+        db.runTransaction(function (transaction) {
+          return transaction.getAll(...friendRefs).then((docs) => {
+            const friendAndAvatarArray = userFriends.map((friend) => {
+              let result = false;
+              docs.forEach((doc) => {
+                const data = doc.data();
+                console.log(`DOCID: ${doc.id}\n FRIENDID: ${friend.id}`);
+                if (doc.id === friend.id) {
+                  result = { ...friend, avatar: data.avatar };
+                }
+              });
+              return result;
+            });
+            socket.emit("userFriends", friendAndAvatarArray);
+          });
+        });
+        // console.log(
+        //   `FRIEND DATA FOR YA` +
+        //     util.inspect(data.data().friends, {
+        //       showHidden: false,
+        //       depth: null,
+        //     })
+        // );
       }
     });
   });
 
-  //saving and removing saved rooms 
+  //saving and removing saved rooms
 
   //saving rooms currently broken. Errors saying:
   // Error: Value for argument "documentPath" is not a valid resource path. Path must be a non-empty string.
@@ -683,10 +718,8 @@ io.on("connect", (socket) => {
   //   at C:\Users\Willp\Desktop\chat-app-sage\server\node_modules\socket.io\lib\socket.js:528:12
   //   at processTicksAndRejections (internal/process/task_queues.js:79:11)
 
-  //also, if user is in a room and creates a new room, the message welcoming the user to the new room will appear in the old room. 
-  //eg, you're in room "test" and click the new room button, you label the room "test2" and click submit. The current room "test" will display a new message saying "welcome to your new room test2" even though you are still in room "test". 
-
-  
+  //also, if user is in a room and creates a new room, the message welcoming the user to the new room will appear in the old room.
+  //eg, you're in room "test" and click the new room button, you label the room "test2" and click submit. The current room "test" will display a new message saying "welcome to your new room test2" even though you are still in room "test".
 
   socket.on("add-saved-room", ({ id, roomID }) => {
     const userRef = usersRef.doc(id);
@@ -855,7 +888,7 @@ io.on("connect", (socket) => {
   });
 
   //need to create rmv favorite room function
-  
+
   //remove favorite room
 
   // socket.on("rmv-favorite-room", ({ id, roomID }) => {
