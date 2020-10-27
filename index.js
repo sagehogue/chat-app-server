@@ -681,23 +681,25 @@ io.on("connect", (socket) => {
         const friendRefs = friendsListIDs.map((id) => {
           return usersRef.doc(id);
         });
-
-        db.runTransaction(function (transaction) {
-          return transaction.getAll(...friendRefs).then((docs) => {
-            const friendAndAvatarArray = userFriends.map((friend) => {
-              let result = false;
-              docs.forEach((doc) => {
-                const data = doc.data();
-                console.log(`DOCID: ${doc.id}\n FRIENDID: ${friend.id}`);
-                if (doc.id === friend.id) {
-                  result = { ...friend, avatar: data.avatar };
-                }
+        if (friendsRefs) {
+          db.runTransaction(function (transaction) {
+            return transaction.getAll(...friendRefs).then((docs) => {
+              const friendAndAvatarArray = userFriends.map((friend) => {
+                let result = false;
+                docs.forEach((doc) => {
+                  const data = doc.data();
+                  console.log(`DOCID: ${doc.id}\n FRIENDID: ${friend.id}`);
+                  if (doc.id === friend.id) {
+                    result = { ...friend, avatar: data.avatar };
+                  }
+                });
+                return result;
               });
-              return result;
+              socket.emit("userFriends", friendAndAvatarArray);
             });
-            socket.emit("userFriends", friendAndAvatarArray);
           });
-        });
+        }
+
         // console.log(
         //   `FRIEND DATA FOR YA` +
         //     util.inspect(data.data().friends, {
