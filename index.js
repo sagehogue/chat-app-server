@@ -32,6 +32,7 @@ const { getCurrentTime } = require("./util");
 const router = require("./router");
 const serviceAccount = require("./API_KEY.json"); // firebase API key
 const { Console } = require("console");
+// const { socket } = require("../chat-app-client-master/src/App");
 
 // TODOS:
 // 1) Delete dead code & refactor
@@ -116,6 +117,13 @@ const updateClientRoomData = async (room) => {
 // "add-friend", "remove-friend", "accept-friend-request", "decline-friend-request",
 // "cancel-friend-request", "requestTop8Rooms", requestUserRooms, "fetch-friends", "disconnecting"
 io.on("connect", (socket) => {
+  // Provide front end with updated list of user rooms - under connect so socket is in scope
+  const fetchUserRooms = async (id) => {
+    const userRef = usersRef.doc(id);
+    const userDoc = await userRef.get();
+    const userData = userDoc.data();
+    socket.emit("userRooms", userData.rooms);
+  };
   // gets displayName from socket
   console.log("connecting socket id " + socket.id);
   let displayName, accountID;
@@ -318,14 +326,15 @@ io.on("connect", (socket) => {
       creator,
       creatorUID,
       roomID,
+      isFavorite = false,
+      avatar = false,
     } = data;
 
-    let avatar;
-    if (data.avatar) {
-      avatar = data.avater;
-    } else {
-      avatar = "";
-    }
+    // if (data.avatar) {
+    //   avatar = data.avatar;
+    // } else {
+    //   avatar = "";
+    // }
 
     const userRef = usersRef.doc(creatorUID);
     const roomRef = roomsRef.doc(roomID);
@@ -341,12 +350,18 @@ io.on("connect", (socket) => {
 
         const userData = userDoc.data();
 
-        const roomForUser = { id: roomID, roomName: roomName, avatar };
+        const roomForUser = {
+          id: roomID,
+          roomName: roomName,
+          avatar: avatar,
+          creator,
+          isFavorite,
+        };
         const roomDocContent = {
           id: roomID,
           roomName: roomName,
-          avatar,
-          creator: creator,
+          avatar: avatar,
+          creator: { displayName: creator, id: creatorUID },
           passwordProtected: passwordProtected,
           password: password,
           members: [{ displayName: creator, id: creatorUID, role: "creator" }],
@@ -364,11 +379,12 @@ io.on("connect", (socket) => {
         id: creatorUID,
         sessionID,
       };
-      const room = { id: roomID, roomName };
-      updateClientRoomData(addRoom(room, user));
+      // const room = { id: roomID, roomName };
+      // updateClientRoomData(addRoom(room, user));
+      fetchUserRooms(creatorUID);
       socket.emit("message", {
         user: "admin",
-        text: `${user.displayName}, welcome to ${room.roomName}, your new room. Invite some friends, or secure it with a password in the settings.`,
+        text: `${user.displayName}, welcome to ${roomName}, your new room. Invite some friends, or secure it with a password in the settings.`,
         time: getCurrentTime(),
       });
     });
@@ -402,13 +418,44 @@ io.on("connect", (socket) => {
       });
   });
 
-  socket.on("add-user-room", async ({ uid, roomID, favorite = false }) => {
+  socket.on("add-user-room", async ({ uid, roomID, isFavorite = false }) => {
     // addNewSavedRoom(userUID, roomUID)
+    const roomRef = roomsRef.doc(roomID);
     const userRef = usersRef.doc(uid);
+
+    db.runTransaction(function (transaction) {
+      return transaction.getAll(roomRef, userRef).then((docs) => {
+        const roomDoc = docs[0];
+        const userDoc = docs[1];
+
+        if (!roomDoc.exists || !userDoc.exists) {
+          throw "Document does not exist!";
+        }
+
+        const roomData = roomDoc.data();
+        const userData = userDoc.data();
+
+        const roomObj = {
+          id: roomID,
+          avatar: roomData.avatar,
+          creator: roomData.creator,
+          roomName: roomData.roomName,
+          isFavorite,
+        };
+        const memberObj = {
+          id: uid,
+          avatar: userData.avatar,
+          displayName: userData.displayName,
+        };
+        transaction.update(userRef, { rooms: roomObj });
+        transaction.update(roomRef, { members: memberObj });
+      });
+    });
+
     const res = await userRef.update({
       rooms: admin.firestore.FieldValue.arrayUnion({
         id: roomID,
-        favorite: favorite,
+        isFavorite,
       }),
     });
   });
@@ -781,7 +828,7 @@ io.on("connect", (socket) => {
     });
   });
 
-  socket.on("rmv-saved-room", ({ id, roomID }) => {
+  socket.on("remove-saved-room", ({ id, roomID }) => {
     const userRef = usersRef.doc(id);
     const roomRef = roomsRef.doc(roomID);
     let userRoomList;
@@ -902,41 +949,65 @@ io.on("connect", (socket) => {
 
   //remove favorite room
 
-  // socket.on("rmv-favorite-room", ({ id, roomID }) => {
-  //   const userRef = usersRef.doc(id);
-  //   const roomRef = roomsRef.doc(roomID);
-  //   let userRoomList;
-  //   db.runTransaction(function (transaction) {
-  //     return transaction
-  //       .getAll(userRef, roomRef)
-  //       .then((docs) => {
-  //         const userDoc = docs[0];
-  //         const roomDoc = docs[1];
-  //         if (!userDoc.exists || !roomDoc.exists) {
-  //           throw "Document does not exist!";
-  //         }
-  //         const userData = userDoc.data();
-  //         const roomData = roomDoc.data();
-  //         // Get array of user rooms and room members
-  //         const userRooms = userData.rooms;
-  //         const roomMembers = roomData.members;
-  //         const filteredRoomsArray = userRooms.filter(
-  //           (room) => room.id !== roomID
-  //         );
-  //         const filteredRoomMembersArray = roomMembers.filter(
-  //           (member) => id !== member.id
-  //         );
+  socket.on("remove-favorite-room", async ({ id, roomID }) => {
+    console.log(`REMOVING FAVORITE: ${id} ${roomID}`);
+    let userRoomList;
+    const userRef = usersRef.doc(id);
+    const roomRef = roomsRef.doc(roomID);
 
-  //         userRoomList = filteredRoomMembersArray;
+    const userDoc = await userRef.get();
 
-  //         transaction.update(userRef, { rooms: filteredRoomsArray });
-  //         transaction.update(roomRef, { members: filteredRoomMembersArray });
-  //       })
-  //       .then(() => {
-  //         socket.emit("userRooms", userRoomList);
-  //       });
-  //   });
-  // });
+    const userData = userDoc.data();
+    const userRooms = userData.rooms;
+    const roomToUnfavorite = userRooms.filter((room) => room.id == roomID);
+    const filteredRoomMembersArray = userRooms.filter(
+      (room) => !(room.id == roomID)
+    );
+    const newRoom = roomToUnfavorite[0];
+    newRoom.isFavorite = false;
+
+    userRoomList = [...filteredRoomMembersArray, newRoom];
+
+    userRef
+      .update({ rooms: userRoomList })
+      .then(() => {
+        socket.emit("userRooms", userRoomList);
+      })
+      .catch((err) => {
+        throw new Error(`ERROR REMOVING FAVORITE ROOM: ${err}`);
+      });
+
+    // db.runTransaction(function (transaction) {
+    //   return transaction
+    //     .getAll(userRef, roomRef)
+    //     .then((docs) => {
+    //       const userDoc = docs[0];
+    //       const roomDoc = docs[1];
+    //       if (!userDoc.exists || !roomDoc.exists) {
+    //         throw "Document does not exist!";
+    //       }
+    //       const userData = userDoc.data();
+    //       const roomData = roomDoc.data();
+    //       // Get array of user rooms and room members
+    //       const userRooms = userData.rooms;
+    //       const roomMembers = roomData.members;
+
+    //       const roomToUnfavorite = userRooms.filter(
+    //         (room) => room.id == roomID
+    //       );
+    //       const newRoom = roomToUnfavorite[0];
+    //       newRoom.isFavorite = false;
+
+    //       userRoomList = [...filteredRoomMembersArray, newRoom];
+
+    //       transaction.update(userRef, { rooms: userRoomList });
+    //       transaction.update(roomRef, { members: filteredRoomMembersArray });
+    //     })
+    //     .then(() => {
+    //       socket.emit("userRooms", userRoomList);
+    //     });
+    // });
+  });
 
   // Event fires when user disconnects from socket instance.
   // socket.on("disconnecting", () => {
