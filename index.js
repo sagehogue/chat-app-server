@@ -728,7 +728,8 @@ io.on("connect", (socket) => {
         const friendRefs = friendsListIDs.map((id) => {
           return usersRef.doc(id);
         });
-        if (friendsRefs) {
+
+        if (friendRefs.length > 0) {
           db.runTransaction(function (transaction) {
             return transaction.getAll(...friendRefs).then((docs) => {
               const friendAndAvatarArray = userFriends.map((friend) => {
@@ -806,7 +807,7 @@ io.on("connect", (socket) => {
           avatar,
         };
 
-        const newUserSavedRooms = [...userRooms, newSavedRoom];
+        userRoomData = [...userRooms, newSavedRoom];
 
         const newRoomMember = {
           id,
@@ -817,9 +818,9 @@ io.on("connect", (socket) => {
 
         const newRoomMembers = [...roomMembers, newRoomMember];
 
-        userRoomData = newUserSavedRooms;
+        userRoomData = userRoomData;
         // update friends with new array
-        transaction.update(userRef, { rooms: newUserSavedRooms });
+        transaction.update(userRef, { rooms: userRoomData });
         // update friends with new array
         transaction.update(roomRef, { members: newRoomMembers });
       });
