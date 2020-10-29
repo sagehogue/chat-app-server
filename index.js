@@ -418,6 +418,13 @@ io.on("connect", (socket) => {
       });
   });
 
+  socket.on("change-room-avatar", async ({ id, avatar }) => {
+    const roomRef = roomsRef.doc(id);
+    await roomRef.update({ avatar: avatar }).then((res) => {
+      socket.emit("new-room-avatar", { id, avatar });
+    });
+  });
+
   socket.on("add-user-room", async ({ uid, roomID, isFavorite = false }) => {
     // addNewSavedRoom(userUID, roomUID)
     const roomRef = roomsRef.doc(roomID);
