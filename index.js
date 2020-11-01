@@ -709,6 +709,109 @@ io.on("connect", (socket) => {
     });
   });
 
+  socket.on("add-favorite-user", async ({ id, recipientID }) => {
+    console.log(`USERID ${id}\nRECIPIENTID: ${recipientID}`);
+    let newUserFriends;
+    const userRef = usersRef.doc(id);
+    const recipientRef = usersRef.doc(recipientID);
+    db.runTransaction((transaction) => {
+      return transaction
+        .getAll(userRef, recipientRef)
+        .then((docs) => {
+          const userDoc = docs[0];
+          const recipientDoc = docs[1];
+          if (!userDoc.exists || !recipientDoc.exists) {
+            throw "Document does not exist!";
+          }
+          const userData = userDoc.data();
+          const recipientData = recipientDoc.data();
+          // Get array of user friends
+          const userFriends = userData.friends;
+          // Filter out already favorited rooms
+          try {
+            userFriends.map((friend) => {
+              // case: recipient found
+              if (friend.id === recipientID) {
+                // case: already favorited
+                if (friend.isFavorite === true) {
+                  throw new Error("This room is already favorited");
+                } else {
+                  newUserFriends = userFriends.filter(
+                    (friend) => !(recipientID === friend.id)
+                  );
+                  const newFriend = { ...friend, isFavorite: true };
+                  newUserFriends.push(newFriend);
+                }
+              }
+            });
+            transaction.update(userRef, { friends: newUserFriends });
+            return newUserFriends;
+          } catch (error) {
+            console.log(`ERROR: ${error}`);
+            // handle error
+          }
+        })
+        .then((friends) => {
+          if (friends) {
+            socket.emit("userFriends", friends);
+          }
+        });
+    });
+  });
+
+  socket.on("remove-favorite-user", async ({ id, recipientID }) => {
+    console.log(`USERID ${id}\nRECIPIENTID: ${recipientID}`);
+    let newUserFriends;
+    const userRef = usersRef.doc(id);
+    const recipientRef = usersRef.doc(recipientID);
+    db.runTransaction((transaction) => {
+      return transaction
+        .getAll(userRef, recipientRef)
+        .then((docs) => {
+          const userDoc = docs[0];
+          const recipientDoc = docs[1];
+          if (!userDoc.exists || !recipientDoc.exists) {
+            throw "Document does not exist!";
+          }
+          const userData = userDoc.data();
+          const recipientData = recipientDoc.data();
+          // Get array of user friends
+          const userFriends = userData.friends;
+          // Filter out already favorited rooms
+          try {
+            userFriends.map((friend) => {
+              // case: recipient found
+              if (friend.id === recipientID) {
+                // case: already favorited
+                if (friend.isFavorite === true) {
+                  newUserFriends = userFriends.filter(
+                    (friend) => !(recipientID === friend.id)
+                  );
+                  const newFriend = { ...friend, isFavorite: false };
+                  newUserFriends.push(newFriend);
+                } else {
+                  throw new Error("This user is not favorited");
+                }
+              }
+            });
+            transaction.update(userRef, { friends: newUserFriends });
+            return newUserFriends;
+          } catch (error) {
+            console.log(`ERROR: ${error}`);
+            // handle error
+          }
+        })
+        .then((friends) => {
+          if (friends) {
+            console.log(friends);
+            socket.emit("userFriends", friends);
+          }
+        });
+    });
+  });
+
+  socket.on("remove-favorite-user", async ({ id, recipientID }) => {});
+
   socket.on("requestTop8Rooms", () => {
     const topRooms = getMostPopulousRooms(8);
     socket.emit("top8Rooms", topRooms);
