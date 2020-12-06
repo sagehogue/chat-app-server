@@ -887,31 +887,6 @@ io.on("connect", (socket) => {
           FetchFriendsListAvatars(friendsListIDs, userFriends)
         );
 
-<<<<<<< HEAD
-        if (friendRefs.length > 0) {
-          console.log("GETTING FRIEND DOCS");
-          db.runTransaction(function (transaction) {
-            return transaction.getAll(...friendRefs).then((docs) => {
-              const friendAndAvatarArray = userFriends.map((friend) => {
-                let result = false;
-                docs.forEach((doc) => {
-                  const data = doc.data();
-
-                  if (doc.id === friend.id) {
-                    result = { ...friend, avatar: data.avatar };
-                  }
-                });
-                if (result) {
-                  return result;
-                } else {
-                  return friend;
-                }
-              });
-              socket.emit("userFriends", friendAndAvatarArray);
-            });
-          });
-        }
-=======
         // if (friendRefs.length > 0) {
         //   db.runTransaction(function (transaction) {
         //     return transaction.getAll(...friendRefs).then((docs) => {
@@ -930,7 +905,6 @@ io.on("connect", (socket) => {
         //     });
         //   });
         // }
->>>>>>> 25faaae44b094c28d6a032161ce1b2d60e7ecad3
 
         // console.log(
         //   `FRIEND DATA FOR YA` +
