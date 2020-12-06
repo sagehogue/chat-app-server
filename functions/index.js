@@ -33,11 +33,13 @@ exports.indexRoom = functions.firestore
 exports.updateRoomIndex = functions.firestore
   .document("/rooms/{roomID}")
   .onUpdate((snap, context) => {
-    const room = snap.data();
+    const newValues = snap.after.data();
+    const oldValues = snap.before.data();
+    // data manipulation goes here
 
-    room.objectID = context.params.roomID;
-    room.memberCount = room.members.length;
-    return roomIndex.partialUpdateObject(room);
+    newValues.objectID = context.params.roomID;
+    newValues.memberCount = room.members.length;
+    return roomIndex.partialUpdateObject(newValues);
   });
 
 exports.unindexRoom = functions.firestore
@@ -58,10 +60,11 @@ exports.indexUser = functions.firestore
 exports.updateUserIndex = functions.firestore
   .document("/users/{id}")
   .onUpdate((snap, context) => {
-    const user = snap.data();
-
-    user.objectID = context.params.id;
-    return userIndex.partialUpdateObject(user);
+    const newValues = snap.after.data();
+    const oldValues = snap.before.data();
+    // do any necessary data manipulation here
+    newValues.objectID = context.params.id;
+    return userIndex.partialUpdateObject(newValues);
   });
 
 exports.unindexUser = functions.firestore
