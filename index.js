@@ -109,6 +109,32 @@ const updateClientRoomData = async (room) => {
   }
 };
 
+// fetches friends avatars from array of IDs
+//emits socket event "userFriendsAvatars" with data
+const FetchFriendsListAvatars = (friendsListIDs, userFriends) => {
+  const friendRefs = friendsListIDs.map((id) => {
+    return usersRef.doc(id);
+  });
+  if (friendRefs.length > 0) {
+    db.runTransaction(function (transaction) {
+      return transaction.getAll(...friendRefs).then((docs) => {
+        const friendAndAvatarArray = userFriends.map((friend) => {
+          let result = false;
+          docs.forEach((doc) => {
+            const data = doc.data();
+            console.log(`DOCID: ${doc.id}\n FRIENDID: ${friend.id}`);
+            if (doc.id === friend.id) {
+              result = { ...friend, avatar: data.avatar };
+            }
+          });
+          return result;
+        });
+        return friendAndAvatarArray;
+      });
+    });
+  }
+};
+
 // SOCKET EVENT LISTENERS
 
 // Events in use:
@@ -732,28 +758,30 @@ io.on("connect", (socket) => {
         const friendsListIDs = userFriends.map((friend) => {
           return friend.id;
         });
-        const friendRefs = friendsListIDs.map((id) => {
-          return usersRef.doc(id);
-        });
+        socket.emit("userFriends", userFriends);
+        socket.emit(
+          "userFriendsAvatars",
+          FetchFriendsListAvatars(friendsListIDs, userFriends)
+        );
 
-        if (friendRefs.length > 0) {
-          db.runTransaction(function (transaction) {
-            return transaction.getAll(...friendRefs).then((docs) => {
-              const friendAndAvatarArray = userFriends.map((friend) => {
-                let result = false;
-                docs.forEach((doc) => {
-                  const data = doc.data();
-                  console.log(`DOCID: ${doc.id}\n FRIENDID: ${friend.id}`);
-                  if (doc.id === friend.id) {
-                    result = { ...friend, avatar: data.avatar };
-                  }
-                });
-                return result;
-              });
-              socket.emit("userFriends", friendAndAvatarArray);
-            });
-          });
-        }
+        // if (friendRefs.length > 0) {
+        //   db.runTransaction(function (transaction) {
+        //     return transaction.getAll(...friendRefs).then((docs) => {
+        //       const friendAndAvatarArray = userFriends.map((friend) => {
+        //         let result = false;
+        //         docs.forEach((doc) => {
+        //           const data = doc.data();
+        //           console.log(`DOCID: ${doc.id}\n FRIENDID: ${friend.id}`);
+        //           if (doc.id === friend.id) {
+        //             result = { ...friend, avatar: data.avatar };
+        //           }
+        //         });
+        //         return result;
+        //       });
+        //       // socket.emit("userFriends", friendAndAvatarArray);
+        //     });
+        //   });
+        // }
 
         // console.log(
         //   `FRIEND DATA FOR YA` +
