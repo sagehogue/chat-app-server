@@ -850,6 +850,7 @@ io.on("connect", (socket) => {
     const userRef = usersRef.doc(uid);
     await userRef.get().then((data) => {
       if (data.exists) {
+        // user's list of friends
         const userFriends = data.data().friends;
         const friendsListIDs = userFriends.map((friend) => {
           return friend.id;
@@ -859,18 +860,23 @@ io.on("connect", (socket) => {
         });
 
         if (friendRefs.length > 0) {
+          console.log("GETTING FRIEND DOCS");
           db.runTransaction(function (transaction) {
             return transaction.getAll(...friendRefs).then((docs) => {
               const friendAndAvatarArray = userFriends.map((friend) => {
                 let result = false;
                 docs.forEach((doc) => {
                   const data = doc.data();
-                  console.log(`DOCID: ${doc.id}\n FRIENDID: ${friend.id}`);
+
                   if (doc.id === friend.id) {
                     result = { ...friend, avatar: data.avatar };
                   }
                 });
-                return result;
+                if (result) {
+                  return result;
+                } else {
+                  return friend;
+                }
               });
               socket.emit("userFriends", friendAndAvatarArray);
             });
