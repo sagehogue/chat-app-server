@@ -109,12 +109,17 @@ const updateClientRoomData = async (room) => {
   }
 };
 
-// fetches friends avatars from array of IDs
-//emits socket event "userFriendsAvatars" with data
-const FetchFriendsListAvatars = (friendsListIDs, userFriends) => {
+// Takes entire friends list, creates friendsListIDs array out of it, gets all documents for friends accounts, attaches avatar objects to friends list, sends to FE
+// avatar obj = {id: xxxx, url: xxxx}
+// emits socket event "userFriendsAvatars"
+const FetchFriendsListAvatars = (userFriends) => {
+  const friendsListIDs = userFriends.map((friend) => {
+    return friend.id;
+  });
   const friendRefs = friendsListIDs.map((id) => {
     return usersRef.doc(id);
   });
+
   if (friendRefs.length > 0) {
     db.runTransaction(function (transaction) {
       return transaction.getAll(...friendRefs).then((docs) => {
@@ -325,29 +330,6 @@ io.on("connect", (socket) => {
     socket.broadcast.emit("top8Rooms", topRooms);
   });
 
-  // handles creation of new rooms by users (old version)
-  // socket.on(
-  //   "createNewRoom",
-  //   ({ roomName, passwordProtected, password, creator, creatorUID }) => {
-  //     roomsRef
-  //       .add({
-  //         roomName: roomName,
-  //         creator: creator,
-  //         passwordProtected: passwordProtected,
-  //         password: password,
-  //         members: [{ displayName: creator, id: creatorUID, role: "creator" }],
-  //       })
-  //       .then(async (res) => {
-  //         const userRef = usersRef.doc(creatorUID);
-  //         const result = await userRef.update({
-  //           rooms: admin.firestore.FieldValue.arrayUnion({
-  //             id: res.id,
-  //             roomName: roomName,
-  //           }),
-  //         });
-  //         return "Success! New Room created with ID: " + res.id;
-  //       });
-
   // handles creation of new rooms by users
   socket.on("createNewRoom", async (data) => {
     const {
@@ -360,12 +342,6 @@ io.on("connect", (socket) => {
       isFavorite = false,
       avatar = false,
     } = data;
-
-    // if (data.avatar) {
-    //   avatar = data.avatar;
-    // } else {
-    //   avatar = "";
-    // }
 
     const userRef = usersRef.doc(creatorUID);
     const roomRef = roomsRef.doc(roomID);
@@ -438,6 +414,45 @@ io.on("connect", (socket) => {
         });
       }
     }
+  });
+
+  socket.on("fetch-avatars", async ({ users, socketEventString }) => {
+    const usersIDs = users.map((user) => {
+      return user.id;
+    });
+    const userRefs = usersIDs.map((id) => {
+      return usersRef.doc(id);
+    });
+    const transaction = db.runTransaction(function (transaction) {
+      if (userRefs.length > 0) {
+        return transaction
+          .getAll(...userRefs)
+          .then((docs) => {
+            // map through each document
+            const usersWithAvatars = docs.map((doc) => {
+              // get doc data
+              const data = doc.data();
+              // check for user matching document
+              const userWithAvatar = users.map((user) => {
+                if (user.id == data.id) {
+                  // when found, include document's avatar
+                  return { ...user, avatar: data.avatar };
+                }
+              });
+              if (userWithAvatar) {
+                return userWithAvatar;
+              } else {
+                return users.find((user) => user.id === doc.id);
+              }
+            });
+            return Promise.resolve(usersWithAvatars);
+          })
+          .then((userList) => {
+            socket.emit(socketEventString, userList);
+          });
+      }
+    });
+    console.log(transaction);
   });
 
   socket.on("change-avatar", async ({ id, image }) => {
@@ -870,21 +885,17 @@ io.on("connect", (socket) => {
     }
   });
 
-  // should fetch user's data without harming it.
+  // Get user's friends list, sends to FE, initiates fetching of friends list avatars.
   socket.on("fetch-friends", async ({ uid }) => {
     console.log(`UID for friend fetching ` + uid);
     const userRef = usersRef.doc(uid);
-    await userRef.get().then((data) => {
+    await userRef.get().then(async (data) => {
       if (data.exists) {
         const userFriends = data.data().friends;
-        const friendsListIDs = userFriends.map((friend) => {
-          return friend.id;
-        });
+        // First time friends list data is provided to FE
         socket.emit("userFriends", userFriends);
-        socket.emit(
-          "userFriendsAvatars",
-          FetchFriendsListAvatars(friendsListIDs, userFriends)
-        );
+        const avatarList = await FetchFriendsListAvatars(userFriends);
+        socket.emit("userFriendsAvatars", avatarList);
 
         // if (friendRefs.length > 0) {
         //   db.runTransaction(function (transaction) {
