@@ -891,6 +891,7 @@ io.on("connect", (socket) => {
     const userRef = usersRef.doc(uid);
     await userRef.get().then(async (data) => {
       if (data.exists) {
+        // user's list of friends
         const userFriends = data.data().friends;
         // First time friends list data is provided to FE
         socket.emit("userFriends", userFriends);
