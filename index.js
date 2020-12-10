@@ -112,18 +112,18 @@ const updateClientRoomData = async (room) => {
 // Takes entire friends list, creates friendsListIDs array out of it, gets all documents for friends accounts, attaches avatar objects to friends list, sends to FE
 // avatar obj = {id: xxxx, url: xxxx}
 // emits socket event "userFriendsAvatars"
-const FetchFriendsListAvatars = (userFriends) => {
+const FetchFriendsListAvatars = async (userFriends) => {
   const friendsListIDs = userFriends.map((friend) => {
     return friend.id;
   });
   const friendRefs = friendsListIDs.map((id) => {
     return usersRef.doc(id);
   });
-
+  let friendAndAvatarArray;
   if (friendRefs.length > 0) {
-    db.runTransaction(function (transaction) {
+    return db.runTransaction(function (transaction) {
       return transaction.getAll(...friendRefs).then((docs) => {
-        const friendAndAvatarArray = userFriends.map((friend) => {
+        friendAndAvatarArray = userFriends.map((friend) => {
           let result = false;
           docs.forEach((doc) => {
             const data = doc.data();
@@ -137,7 +137,57 @@ const FetchFriendsListAvatars = (userFriends) => {
         return friendAndAvatarArray;
       });
     });
+  } else {
+    return false;
   }
+};
+
+const fetchUserAvatars = async (userArray) => {
+  const userListIDs = userArray.map((friend) => {
+    return friend.id;
+  });
+  const userRefs = userListIDs.map((id) => {
+    return usersRef.doc(id);
+  });
+  let userAndAvatarArray;
+
+  if (userRefs.length > 0) {
+    return db.runTransaction(function (transaction) {
+      return transaction.getAll(...userRefs).then((docs) => {
+        // for each user, search for avatar
+        userAndAvatarArray = userArray.map((user) => {
+          // default case: not found
+          let result = user;
+          // for each document, check for matching user
+          docs.forEach((doc) => {
+            const data = doc.data();
+            console.log(`DOCID: ${doc.id}\n USERID: ${user.id}`);
+            // if match found, result = document's avatar contents
+            if (doc.id == user.id) {
+              result = { ...user, avatar: data.avatar };
+            }
+          });
+          return result;
+        });
+        return userAndAvatarArray;
+      });
+    });
+  } else {
+    return false;
+  }
+
+  // await userRef.get().then(async (data) => {
+  //   if (data.exists) {
+  //     // user's list of friends
+  //     const userFriends = data.data().friends;
+  //     // First time friends list data is provided to FE
+  //     socket.emit("userFriends", userFriends);
+  //     FetchFriendsListAvatars(userFriends).then((avatarList) => {
+  //       console.log(`USER AVATAR LIST: ${util.inspect(avatarList)}`);
+  //       socket.emit("userFriendsAvatars", avatarList);
+  //     });
+  //   }
+  // });
 };
 
 // SOCKET EVENT LISTENERS
@@ -417,42 +467,10 @@ io.on("connect", (socket) => {
   });
 
   socket.on("fetch-avatars", async ({ users, socketEventString }) => {
-    const usersIDs = users.map((user) => {
-      return user.id;
-    });
-    const userRefs = usersIDs.map((id) => {
-      return usersRef.doc(id);
-    });
-    const transaction = db.runTransaction(function (transaction) {
-      if (userRefs.length > 0) {
-        return transaction
-          .getAll(...userRefs)
-          .then((docs) => {
-            // map through each document
-            const usersWithAvatars = docs.map((doc) => {
-              // get doc data
-              const data = doc.data();
-              // check for user matching document
-              const userWithAvatar = users.map((user) => {
-                if (user.id == data.id) {
-                  // when found, include document's avatar
-                  return { ...user, avatar: data.avatar };
-                }
-              });
-              if (userWithAvatar) {
-                return userWithAvatar;
-              } else {
-                return users.find((user) => user.id === doc.id);
-              }
-            });
-            return Promise.resolve(usersWithAvatars);
-          })
-          .then((userList) => {
-            socket.emit(socketEventString, userList);
-          });
-      }
-    });
-    console.log(transaction);
+    console.log("HERE ARE THE USERS " + users);
+    const usersWithAvatars = await fetchUserAvatars(users);
+    console.log(`FUCKING HERE USE THIS SHIT ${util.inspect(usersWithAvatars)}`);
+    socket.emit(socketEventString, usersWithAvatars);
   });
 
   socket.on("change-avatar", async ({ id, image }) => {
@@ -887,7 +905,6 @@ io.on("connect", (socket) => {
 
   // Get user's friends list, sends to FE, initiates fetching of friends list avatars.
   socket.on("fetch-friends", async ({ uid }) => {
-    console.log(`UID for friend fetching ` + uid);
     const userRef = usersRef.doc(uid);
     await userRef.get().then(async (data) => {
       if (data.exists) {
@@ -895,8 +912,10 @@ io.on("connect", (socket) => {
         const userFriends = data.data().friends;
         // First time friends list data is provided to FE
         socket.emit("userFriends", userFriends);
-        const avatarList = await FetchFriendsListAvatars(userFriends);
-        socket.emit("userFriendsAvatars", avatarList);
+        fetchUserAvatars(userFriends).then((avatarList) => {
+          console.log(`USER AVATAR LIST: ${util.inspect(avatarList)}`);
+          socket.emit("userFriendsAvatars", avatarList);
+        });
 
         // if (friendRefs.length > 0) {
         //   db.runTransaction(function (transaction) {
