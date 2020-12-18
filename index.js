@@ -142,6 +142,7 @@ const FetchFriendsListAvatars = async (userFriends) => {
   }
 };
 
+// expects array of objects with id property
 const fetchUserAvatars = async (userArray) => {
   const userListIDs = userArray.map((friend) => {
     return friend.id;
